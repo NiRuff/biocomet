@@ -6,7 +6,7 @@ import igraph as ig
 from .utils import download_and_load_dataframe
 from .community_detection import apply_leiden, apply_louvain
 from .functional_annotation import checkFuncSignificance
-from .visualization import plot_nv, plotPPI, plotWordclouds, plotWordCloudsPPI
+from .visualization import plot_nv, plotPPI, plotWordclouds, plotWordCloudsPPI, visualize_KEGG
 
 
 class PPIGraph:
@@ -22,7 +22,7 @@ class PPIGraph:
         self.build_network()        # Build the network upon initialization
         self.partition = None       # Placeholder for the partition
         self.func_annotation = None # Placeholder for the functional annotation
-        self.plot_dir = '.'
+        self.plot_dir = '..'
         self.gene_reg_dict = None
 
 
@@ -257,6 +257,59 @@ class PPIGraph:
         else:
             raise AttributeError("categories argument not set properly. Specify list of databases or "
                                  "one of the following strings 'all'/'default'/'pathways'")
+
+    def plotKEGG(self, pathway='all', community='all', show=True, transparency=.5):
+
+        if self.reg_list is not None:
+            # Verify gene list and regulation list compatibility
+            if len(self.gene_list) != len(self.reg_list) or len(set(self.gene_list)) != len(self.gene_list):
+                raise ValueError("Gene list and regulation list must match in length and contain no duplicates.")
+
+            if self.gene_reg_dict is None:
+                # Create dictionary mapping gene_list to reg_list
+                self.gene_reg_dict = dict(zip(self.gene_list, self.reg_list))
+
+        # first check if specific pathway chosen
+        if pathway != 'all':
+            if community != 'all':  # specific community and pathway
+                df = self.func_annotation[community]  # just specific community's df
+                df_kegg = df[(df['category'] == 'KEGG') & (df['term'] == pathway)]
+                if not df_kegg.empty():
+                    pathway_genes_dict = zip(df_kegg['term'], df_kegg['inputGenes'])
+                    for pathway_id, genes in pathway_genes_dict:
+                        gene_reg_dict = {k:v for k,v in self.gene_reg_dict.items() if k in genes}
+                        visualize_KEGG(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
+                                       plot_dir=self.plot_dir, transparency=transparency, community=community, show=show)
+                else:
+                    print(pathway + ' not found in sig. results of community ' + community)
+
+            else:  # specific pathway in all communities
+                for comm, df in self.func_annotation.items():
+                    df_kegg = df[(df['category'] == 'KEGG') & (df['term'] == pathway)]
+                    if not df_kegg.empty():
+                        pathway_genes_dict = zip(df_kegg['term'], df_kegg['inputGenes'])
+                        for pathway_id, genes in pathway_genes_dict:
+                            gene_reg_dict = {k:v for k,v in self.gene_reg_dict.items() if k in genes}
+                            visualize_KEGG(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
+                                           plot_dir=self.plot_dir, transparency=transparency, community=comm, show=show)
+        else:
+            if community != 'all':  # implement all pathways of given community
+                df = self.func_annotation[community]  # just specific community's df
+                df_kegg = df[df['category'] == 'KEGG']
+                pathway_genes_dict = zip(df_kegg['term'], df_kegg['inputGenes'])
+                for pathway_id, genes in pathway_genes_dict:
+                    gene_reg_dict = {k: v for k, v in self.gene_reg_dict.items() if k in genes}
+                    visualize_KEGG(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
+                                   plot_dir=self.plot_dir, transparency=transparency, community=community, show=show)
+            else: # all pathways all communities
+                for comm, df in self.func_annotation.items():
+                    df_kegg = df[df['category'] == 'KEGG']
+                    pathway_genes_dict = zip(df_kegg['term'], df_kegg['inputGenes'])
+                    for pathway_id, genes in pathway_genes_dict:
+                        gene_reg_dict = {k:v for k,v in self.gene_reg_dict.items() if k in genes}
+                        visualize_KEGG(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
+                                       plot_dir=self.plot_dir, transparency=transparency, community=comm, show=show)
+
 
 def to_igraph(network):
 

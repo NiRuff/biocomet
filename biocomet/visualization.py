@@ -1,24 +1,25 @@
+import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+from matplotlib.lines import Line2D
+import matplotlib.patches as mpatches
 import networkx as nx
+import nxviz as nv
+from nxviz import annotate
 from wordcloud import WordCloud
 import pathlib
 from collections import Counter
-import nxviz as nv
 import numpy as np
-from matplotlib.lines import Line2D
 import seaborn as sns
-import matplotlib.patches as mpatches
 import pandas as pd
-import requests
 from IPython.display import Image, display
-import matplotlib.image as mpimg
+import requests
 import io
-from nxviz import annotate
-import xml.etree.ElementTree as ET
-from io import BytesIO
-from PIL import Image, ImageDraw
 import re
-import matplotlib.colors as mcolors
+import xml.etree.ElementTree as ET
+from PIL import Image, ImageDraw
+from io import BytesIO
+
 
 def plot_nv(G, sigPartition, plot_dir, legend=True, kind='ArcPlots'):
 
@@ -207,7 +208,7 @@ def plotPPI(PPIGraph):
         # display(image)
 
 
-def plotWordCloudsPPI(PPIGraph, categories='default'):
+def plotWordCloudsPPI(PPIGraph, categories='default', show=True):
     if type(categories) != str:
         pass
     elif categories.lower() == 'pathways':
@@ -316,9 +317,91 @@ def plotWordCloudsPPI(PPIGraph, categories='default'):
         print("Saving PPI word clouds to %s" % file_name)
         plt.tight_layout()
         plt.savefig(file_name, dpi=300)
-        plt.show()
+        if show:
+            plt.show()
         plt.close()
 
+
+def visualize_KEGG(pathway_id, gene_reg_dict, organism, plot_dir=".", transparency=.5, community=None, show=True):
+    gene_uniprot_dict = convert_gene_symbols_to_uniprot_mygene(gene_reg_dict.keys(), organism=organism)
+
+    uniprot_reg_dict = {gene_uniprot_dict[k]: v for k, v in gene_reg_dict.items()}
+
+    kegg_uniprots_dict = uniprot_to_kegg_dict(uniprot_reg_dict.keys())
+
+    kegg_reg_dict = {k: [uniprot_reg_dict[uni] for uni in v if uni in uniprot_reg_dict] for k, v in
+                     kegg_uniprots_dict.items()}
+
+    annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=plot_dir, transparency=transparency, community=community, show=show)
+
+
+def annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=".", transparency=.5, community=None, show=True):
+
+    # ensure dir existence
+    pathlib.Path(plot_dir + "/KEGG/").mkdir(parents=True, exist_ok=True)
+    if community:
+        pathlib.Path(plot_dir + "/KEGG/" + str(community) + "/").mkdir(parents=True, exist_ok=True)
+
+    # Fetch the KGML content to get information about KEGG IDs
+    kgml_content = fetch_pathway_kgml(pathway_id)
+    graphics_info = parse_kegg_ids_from_kgml_v2(kgml_content)
+
+    # Download the pathway image
+    match = re.search(r"\d", pathway_id)
+    if match:
+        index = match.start()
+        organism_code = pathway_id[:index]
+        image_url = f"https://www.kegg.jp/kegg/pathway/{organism_code}/{pathway_id}.png"
+        response = requests.get(image_url)
+        img = Image.open(BytesIO(response.content)).convert("RGBA")
+    else:
+        raise AttributeError("Invalid pathway ID format.")
+
+    overlay = Image.new('RGBA', img.size, (255, 255, 255, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    # Define color map and normalization
+    min_expr = min(min(values) for values in kegg_reg_dict.values())
+    max_expr = max(max(values) for values in kegg_reg_dict.values())
+    norm = mcolors.TwoSlopeNorm(vmin=min_expr, vcenter=0, vmax=max_expr)
+    cmap = plt.get_cmap('coolwarm')
+
+    for graphic_id, (positional_info, kegg_ids) in graphics_info.items():
+        x, y, w, h = positional_info['x'], positional_info['y'], positional_info['width'], positional_info['height']
+
+        # Collect all regulations associated with the KEGG IDs of this graphic object
+        all_regulations = [kegg_reg_dict[kegg_id] for kegg_id in kegg_ids if kegg_id in kegg_reg_dict]
+
+        # Flatten the list of lists into a single list of regulations
+        regulations = [reg for sublist in all_regulations for reg in sublist]
+
+        num_regs = len(regulations)
+        part_width = w / max(num_regs, 1)
+
+        for i, reg in enumerate(regulations):
+            color_value = cmap(norm(reg))
+            color = tuple(int(255 * c) for c in color_value[:3]) + (
+            int(255 * transparency),)  # Modify the alpha value as needed
+            part_x = x - w / 2 + part_width * i
+            draw.rectangle([part_x, y - h / 2, part_x + part_width, y + h / 2], fill=color)
+
+    # Blend the overlay with the original image
+    img_with_overlay = Image.alpha_composite(img, overlay)
+
+    plt.figure(figsize=(10, 10))
+    plt.imshow(img_with_overlay)
+    plt.axis('off')
+
+    plt.tight_layout()
+    if community:  # if specified
+        file_name = plot_dir + '/KEGG/' + str(community) + pathway_id + '_with_table.png'
+    else:  # if unspecified
+        file_name =plot_dir + "/KEGG/" + "/" + pathway_id + '_with_table.png'
+
+    plt.savefig(file_name, dpi=300)
+    print("Saving KEGG pathway word clouds to %s" %file_name)
+    if show:
+        plt.show()
 
 def fetch_pathway_kgml(pathway_id):
     url = f"http://rest.kegg.jp/get/{pathway_id}/kgml"
@@ -329,115 +412,74 @@ def fetch_pathway_kgml(pathway_id):
         print(f"Failed to fetch KGML for pathway {pathway_id}")
         return None
 
-def annotate_genes_on_pathway(pathway_id, expression_data, plot_dir=".", community=None):
 
-    # ensure dir existence
-    pathlib.Path(plot_dir + "/KEGG/").mkdir(parents=True, exist_ok=True)
-    if community:
-        pathlib.Path(plot_dir + "/KEGG/" + str(community) + "/").mkdir(parents=True, exist_ok=True)
-
-    kgml_content = fetch_pathway_kgml(pathway_id)
-
-    kegg_id_info = parse_kegg_ids_from_kgml(kgml_content)
-
-    # Download the pathway image
-    # Find the index of the first digit in the pathway ID
-    match = re.search(r"\d", pathway_id)
-    if match:
-        index = match.start()
-        organism_code = pathway_id[:index]
-        image_url = f"https://www.kegg.jp/kegg/pathway/{organism_code}/{pathway_id}.png"
-    else:
-        raise AttributeError("pathway_id does not match pattern of 2-4 letter followed by a serie sof digits")
-
-    response = requests.get(image_url)
-    img = Image.open(BytesIO(response.content))
-    draw = ImageDraw.Draw(img)
-
-    # Update color scheme to use coolwarm colormap adjusted to regulation values
-    min_expr, max_expr = min(expression_data.values()), max(expression_data.values())
-    norm = mcolors.TwoSlopeNorm(vmin=min_expr, vcenter=0, vmax=max_expr)
-    cmap = plt.get_cmap('coolwarm')
-
-    # Create a figure with subplots
-    fig, axs = plt.subplots(2, 1, figsize=(20, 25), gridspec_kw={'height_ratios': [4, 1]})
-
-    # Plot the pathway image in the first subplot
-    axs[0].imshow(img)
-    axs[0].axis('off')
-
-    # Prepare table data
-    table_data = []
-    # Assuming cmap and norm are defined as before
-    # todo: handle what should happen if multiple aliases map to the same gene
-    # !! refers to how to color, based on which expression?
-    for gene, expression in expression_data.items():
-        color_value = cmap(norm(expression))  # This returns a RGBA color
-        color = tuple(int(255 * x) for x in color_value[:3])
-        kegg_id = alias2kegg(gene, kegg_id_info)
-        table_data.append([gene, kegg_id, expression])
-        w, h = kegg_id_info[kegg_id]['width'], kegg_id_info[kegg_id]['height']
-        draw.rectangle([kegg_id_info[kegg_id]['x'] - w / 2, kegg_id_info[kegg_id]['y'] - h / 2, kegg_id_info[kegg_id]['x'] + w / 2, kegg_id_info[kegg_id]['y'] + h / 2],
-                       outline=color, width=3, fill=None)
-
-    # Add table subplot
-    col_labels = ["Gene ID", "Mapped Name", "Regulation"]
-    axs[1].axis('off')
-    axs[1].axis('tight')
-    axs[1].table(cellText=table_data, colLabels=col_labels, loc='center')
-
-    # Display colorbar for regulation values
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-    sm.set_array([])
-    fig.colorbar(sm, ax=axs[0], orientation='horizontal', fraction=0.046, pad=0.04, label='Regulation')
-
-    plt.tight_layout()
-    if community: # if specified
-        plt.savefig(plot_dir + '/KEGG/' + str(community) + pathway_id + '_with_table.png', dpi=300)
-    else: # if unspecified
-        plt.savefig(plot_dir + "/KEGG/" + "/" + pathway_id + '_with_table.png', dpi=300)
-    plt.show()
-
-def alias2kegg(gene, kegg_id_info):
-    for kegg_id, kegg_id_data in kegg_id_info.items():
-        if gene in kegg_id_data["gene_aliases"]:
-            return kegg_id
-
-
-
-def parse_kegg_ids_from_kgml(kgml_content): # return 0,0,0,0 if data on gene is missing in the kegg file
+def parse_kegg_ids_from_kgml_v2(kgml_content):
     root = ET.fromstring(kgml_content)
-    kegg_id_dict = {}
+    graphics_dict = {}
     for entry in root.findall(".//entry[@type='gene']"):
+        entry_id = entry.get('id')  # Unique identifier for each graphic object
         graphics = entry.find('.//graphics')
         if graphics is not None:
-            kegg_ids = entry.attrib['name'].split(" ")
-            KEGG_OBJECT_gene_aliases = []
-            KEGG_OBJECT = None
-            for kegg_id in kegg_ids:
-                response = requests.get("https://rest.kegg.jp/get/" + kegg_id)
-
-                for line in response.text.split("\n"):
-                    if line.startswith("SYMBOL"):
-                        content = line.split(" ")
-                        content = [x.strip(' ') for x in content]
-                        aliases = [x for x in content if x not in ['', 'SYMBOL']]
-                        for alias in aliases:
-                            KEGG_OBJECT_gene_aliases.append(alias)
-
-                    if line.startswith("ORTHOLOGY"):
-                        KEGG_OBJECT_t = line.split("[EC:")[-1].strip("]")
-
-                        # test if kegg object id contradicts each other
-                        if KEGG_OBJECT and (KEGG_OBJECT != KEGG_OBJECT_t):
-                            print('two different values for KEGG object found.')
-                        else:
-                            KEGG_OBJECT = KEGG_OBJECT_t
-                        break
-
+            # Extracting positional information
             x = int(graphics.attrib.get('x', 0))
             y = int(graphics.attrib.get('y', 0))
             width = int(graphics.attrib.get('width', 0))
             height = int(graphics.attrib.get('height', 0))
-            kegg_id_dict['kegg_id'] = {'x': x, 'y': y, 'width': width, 'height': height, 'gene_aliases':KEGG_OBJECT_gene_aliases}
-    return kegg_id_dict
+            positional_info = {'x': x, 'y': y, 'width': width, 'height': height}
+
+            # Extracting KEGG IDs associated with this graphic object
+            entry_names = entry.get('name', '').split()
+
+            # Creating the dictionary entry
+            graphics_dict[entry_id] = (positional_info, entry_names)
+    return graphics_dict
+
+def convert_gene_symbols_to_uniprot_mygene(gene_symbols, organism='9606'):
+    base_url = "https://mygene.info/v3/query"
+    gene_to_uniprot = {}  # Dictionary to store gene symbol to UniProt ID mappings
+    for gene_symbol in gene_symbols:
+        params = {
+            'q': gene_symbol,
+            'scopes': 'symbol',
+            'fields': 'uniprot',
+            'species': organism
+        }
+        response = requests.get(base_url, params=params)
+        if response.status_code == 200:
+            data = response.json()
+            if 'hits' in data and len(data['hits']) > 0:
+                # Extracting UniProt ID from the first hit
+                hit = data['hits'][0]
+                if 'uniprot' in hit and 'Swiss-Prot' in hit['uniprot']:
+                    gene_to_uniprot[gene_symbol] = hit['uniprot']['Swiss-Prot']
+                elif 'uniprot' in hit and 'TrEMBL' in hit['uniprot']:
+                    gene_to_uniprot[gene_symbol] = hit['uniprot']['TrEMBL']
+                else:
+                    gene_to_uniprot[gene_symbol] = None
+                    print(f"No UniProt ID found for the gene symbol: {gene_symbol}.")
+            else:
+                gene_to_uniprot[gene_symbol] = None
+                print(f"No UniProt ID found for the gene symbol: {gene_symbol}.")
+        else:
+            print(f"Failed to fetch data from MyGene.info API for {gene_symbol}. Status code: {response.status_code}")
+            gene_to_uniprot[gene_symbol] = None
+    return gene_to_uniprot
+
+
+def uniprot_to_kegg_dict(uniprot_ids):
+    kegg_to_uniprots = {}  # Dictionary to store KEGG ID to UniProt IDs mappings
+    for uniprot_id in uniprot_ids:
+        url = f"http://rest.kegg.jp/conv/genes/uniprot:{uniprot_id}"
+        response = requests.get(url)
+        if response.status_code == 200:
+            for line in response.text.strip().split('\n'):
+                parts = line.split('\t')
+                if len(parts) == 2:
+                    kegg_id = parts[1]  # Extracting KEGG ID
+                    if kegg_id not in kegg_to_uniprots:
+                        kegg_to_uniprots[kegg_id] = [uniprot_id]
+                    else:
+                        kegg_to_uniprots[kegg_id].append(uniprot_id)
+        else:
+            print(f"Failed to fetch data for UniProt ID {uniprot_id}. Status code: {response.status_code}")
+    return kegg_to_uniprots
