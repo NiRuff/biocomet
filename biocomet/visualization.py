@@ -325,7 +325,14 @@ def plotWordCloudsPPI(PPIGraph, categories='default', show=True):
 def visualize_KEGG(pathway_id, gene_reg_dict, organism, plot_dir=".", transparency=.5, community=None, show=True):
     gene_uniprot_dict = convert_gene_symbols_to_uniprot_mygene(gene_reg_dict.keys(), organism=organism)
 
-    uniprot_reg_dict = {gene_uniprot_dict[k]: v for k, v in gene_reg_dict.items()}
+    uniprot_reg_dict = {}
+    for gene, uniprot in gene_uniprot_dict.items():
+        if isinstance(uniprot, list):
+            for uni in uniprot:
+                uniprot_reg_dict[uni] = gene_reg_dict[gene]
+                print(f"Key {gene} from gene_reg_dict mapped to value {uni} in uniprot_reg_dict.")
+        else:
+            uniprot_reg_dict[uniprot] = gene_reg_dict[gene]
 
     kegg_uniprots_dict = uniprot_to_kegg_dict(uniprot_reg_dict.keys())
 
@@ -363,6 +370,9 @@ def annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=".", transpare
     # Define color map and normalization
     min_expr = min(min(values) for values in kegg_reg_dict.values())
     max_expr = max(max(values) for values in kegg_reg_dict.values())
+    # Adjust min_expr and max_expr to be le/ge than 0
+    min_expr = min(min_expr, -1)
+    max_expr = max(max_expr, +1)
     norm = mcolors.TwoSlopeNorm(vmin=min_expr, vcenter=0, vmax=max_expr)
     cmap = plt.get_cmap('coolwarm')
 
@@ -394,9 +404,9 @@ def annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=".", transpare
 
     plt.tight_layout()
     if community:  # if specified
-        file_name = plot_dir + '/KEGG/' + str(community) + pathway_id + '_with_table.png'
+        file_name = plot_dir + '/KEGG/' + str(community) + pathway_id + '.png'
     else:  # if unspecified
-        file_name =plot_dir + "/KEGG/" + "/" + pathway_id + '_with_table.png'
+        file_name =plot_dir + "/KEGG/" + "/" + pathway_id + '.png'
 
     plt.savefig(file_name, dpi=300)
     print("Saving KEGG pathway word clouds to %s" %file_name)
