@@ -6,7 +6,8 @@ import igraph as ig
 from .utils import download_and_load_dataframe
 from .community_detection import apply_leiden, apply_louvain
 from .functional_annotation import checkFuncSignificance
-from .visualization import plot_nv, plotPPI, plotWordclouds, plotWordCloudsPPI, visualize_KEGG
+from .visualization import plot_nv, plotPPI, plotWordclouds, plotWordCloudsPPI, visualize_KEGG, plotRegNetworks
+
 
 
 class PPIGraph:
@@ -22,7 +23,7 @@ class PPIGraph:
         self.build_network()        # Build the network upon initialization
         self.partition = None       # Placeholder for the partition
         self.func_annotation = None # Placeholder for the functional annotation
-        self.plot_dir = '..'
+        self.plot_dir = '.'
         self.gene_reg_dict = None
 
 
@@ -209,6 +210,9 @@ class PPIGraph:
             self.partition = apply_louvain(self.network, iterations=iterations)
 
     def get_functional_annotation(self, categories = 'default'):
+        if self.partition is None:
+            print('Community detection necessary first. Starting community detection now with default parameters.')
+            self.community_detection()
         if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
             self.func_annotation = checkFuncSignificance(self, sig_only=True,
                                                          categories='default', minCommSize=2)
@@ -309,6 +313,12 @@ class PPIGraph:
                         gene_reg_dict = {k:v for k,v in self.gene_reg_dict.items() if k in genes}
                         visualize_KEGG(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
                                        plot_dir=self.plot_dir, transparency=transparency, community=comm, show=show)
+
+    def plot_reg_networks(self, community='all', show=True):
+        if self.partition is None:
+            print('Community detection necessary first. Starting community detection now with default parameters.')
+            self.community_detection()
+        plotRegNetworks(self.network, self.partition, self.plot_dir, community=community, show=show)
 
 
 def to_igraph(network):

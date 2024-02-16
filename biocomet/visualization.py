@@ -1,8 +1,14 @@
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module='nxviz')
+
+import matplotlib as mpl
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.lines import Line2D
 import matplotlib.patches as mpatches
+mpl.rcParams['font.family'] = "monospace"  # change default font family
+
 import networkx as nx
 import nxviz as nv
 from nxviz import annotate
@@ -21,7 +27,7 @@ from PIL import Image, ImageDraw
 from io import BytesIO
 
 
-def plot_nv(G, sigPartition, plot_dir, legend=True, kind='ArcPlots'):
+def plot_nv(G, sigPartition, plot_dir='.', legend=True, kind='ArcPlots', show=True):
 
     pathlib.Path(plot_dir + "/" + kind + "/").mkdir(parents=True, exist_ok=True)
 
@@ -87,7 +93,7 @@ def plot_nv(G, sigPartition, plot_dir, legend=True, kind='ArcPlots'):
     plt.savefig(file_name, dpi=300)
 
 
-def plotWordclouds(funcAnnots, categories='default', plot_dir='.'):
+def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True):
     if type(categories) != str:
         pass
     elif categories.lower() == 'pathways':
@@ -151,11 +157,12 @@ def plotWordclouds(funcAnnots, categories='default', plot_dir='.'):
         print("Saving word clouds to %s" % file_name)
 
         plt.savefig(file_name, dpi=300)
-        plt.show()
+        if show:
+            plt.show()
         plt.close()
 
 
-def plotPPI(PPIGraph):
+def plotPPI(PPIGraph, show=True):
 
     pathlib.Path(PPIGraph.plot_dir + "/PPI_networks/").mkdir(parents=True, exist_ok=True)
 
@@ -203,9 +210,10 @@ def plotPPI(PPIGraph):
 
         with open(file_name, 'wb') as fh:
             fh.write(response.content)
-        #
-        # image = Image(response.content)
-        # display(image)
+
+        if show:
+            image = Image(response.content)
+            display(image)
 
 
 def plotWordCloudsPPI(PPIGraph, categories='default', show=True):
@@ -398,15 +406,48 @@ def annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=".", transpare
     # Blend the overlay with the original image
     img_with_overlay = Image.alpha_composite(img, overlay)
 
-    plt.figure(figsize=(10, 10))
+    # Create a new ImageDraw object for img_with_overlay
+    draw_overlay = ImageDraw.Draw(img_with_overlay)
+
+    # Then proceed with your legend drawing code, but use draw_overlay instead of draw
+    # Parameters for the legend remain the same
+    legend_width = 100  # Width of the legend
+    legend_height = 20  # Height of the legend
+    margin = 10  # Margin from the top and right edges
+    text_offset = 10  # Offset for the text below the legend
+
+    # Calculate legend position
+    legend_top = margin*1.5
+    legend_right = img_with_overlay.width - margin*2
+
+    # Create a gradient legend on img_with_overlay
+    for i in range(legend_width):
+        ratio = i / legend_width
+        color_value = cmap(ratio)
+        color = tuple(int(255 * c) for c in color_value[:3]) + (255,)  # Full opacity
+        draw_overlay.rectangle([legend_right - legend_width + i, legend_top,
+                                legend_right - legend_width + i + 1, legend_top + legend_height], fill=color)
+
+    # Text annotations for vmin, vcenter, and vmax, using draw_overlay
+    draw_overlay.text((legend_right - legend_width, legend_top + legend_height + text_offset), f"{min_expr:.1f}",
+                      fill="black")
+    draw_overlay.text((legend_right - legend_width / 2, legend_top + legend_height + text_offset), "0", fill="black")
+    # Before drawing the text, calculate the text width
+    max_expr_text = f"{max_expr:.1f}"
+    text_width = draw_overlay.textlength(max_expr_text)
+    draw_overlay.text((legend_right - text_width, legend_top + legend_height + text_offset), max_expr_text,
+                      fill="black")
+
+    # Continue to display or save img_with_overlay as before
+    plt.figure(figsize=(20, 20))
     plt.imshow(img_with_overlay)
     plt.axis('off')
 
     plt.tight_layout()
     if community:  # if specified
-        file_name = plot_dir + '/KEGG/' + str(community) + pathway_id + '.png'
+        file_name = plot_dir + '/KEGG/' + str(community) + '/' + pathway_id + '.png'
     else:  # if unspecified
-        file_name =plot_dir + "/KEGG/" + "/" + pathway_id + '.png'
+        file_name =plot_dir + "/KEGG/" + pathway_id + '.png'
 
     plt.savefig(file_name, dpi=300)
     print("Saving KEGG pathway word clouds to %s" %file_name)
@@ -493,3 +534,83 @@ def uniprot_to_kegg_dict(uniprot_ids):
         else:
             print(f"Failed to fetch data for UniProt ID {uniprot_id}. Status code: {response.status_code}")
     return kegg_to_uniprots
+
+
+def plotRegNetworks(G, partition, plot_dir=".", community='all', show=True):
+
+    # ensure dir existence
+    pathlib.Path(plot_dir + "/regNetworks/").mkdir(parents=True, exist_ok=True)
+
+    if community == 'all':
+        communities = communities = set(partition.values())
+        all_regulations = [G.nodes[node]['regulation'] for node in G.nodes]
+        vmin = min(all_regulations) if min(all_regulations) < -1 else -1
+        vmax = max(all_regulations) if max(all_regulations) > 1 else 1
+    else:
+        communities = [community]
+
+    for comm in communities:
+
+        # Create a colormap for the nodes based on their 'regulation' attribute
+        cmap = plt.cm.coolwarm
+        if community != 'all':
+            # Adjust vmin and vmax for specific community
+            nodes_in_community = [node for node, c in partition.items() if c == comm]
+            regulations = [G.nodes[node]['regulation'] for node in nodes_in_community]
+            vmin = min(regulations) if min(regulations) < -1 else -1
+            vmax = max(regulations) if max(regulations) > 1 else 1
+        norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
+
+        # Create the original greyscale colormap for edges
+        cmap_grey = plt.cm.Greys
+        dark_grey_cmap = mpl.colors.LinearSegmentedColormap.from_list(
+            "dark_grey", cmap_grey(np.linspace(0.3, 1, 256))
+        )
+
+        # Filter nodes by community using the partition dictionary
+        nodes_in_community = [node for node, c in partition.items() if c == comm]
+        G_sub = G.subgraph(nodes_in_community)
+
+        # Calculate the layout of the graph
+        pos = nx.kamada_kawai_layout(G_sub)
+
+        # Prepare figure
+        plt.figure(figsize=(12, 12))
+        plt.title(f'Network Visualization for Community {comm}')
+
+        # Node colors and sizes based on 'regulation' attribute
+        node_colors = [cmap(norm(G_sub.nodes[node]['regulation'])) for node in G_sub.nodes]
+        node_sizes = [1500 for node in G_sub.nodes]  # Example scaling
+
+        # Normalize edge weights for width and alpha
+        edge_weights_raw = np.array([G_sub.edges[edge]['weight'] for edge in G_sub.edges])
+        edge_weights = edge_weights_raw * 4  # Adjust scaling as necessary
+        edge_alphas = np.interp(edge_weights_raw, (edge_weights_raw.min(), edge_weights_raw.max()), (0.1, 1))
+
+        # Draw the network
+        nx.draw_networkx_edges(G_sub, pos, width=edge_weights, edge_color=edge_alphas, edge_cmap=dark_grey_cmap, alpha=0.5)
+        nx.draw_networkx_nodes(G_sub, pos, node_size=node_sizes, node_color=node_colors, cmap=cmap)
+
+        # Custom method to draw labels with outlines for readability
+        for node, (x, y) in pos.items():
+            text = node
+            plt.text(x, y, text, fontsize=8, ha='center', va='center',
+                     bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3', alpha=0.5))
+
+        # Draw color reference rectangle in the upper right corner
+        ax = plt.gca()
+        # Create a colorbar as a legend
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+        cbar = plt.colorbar(sm, ax=ax, orientation='vertical', fraction=0.046, pad=0.04)
+        cbar.set_label('Regulation')
+        cbar.ax.invert_yaxis()  # Invert to match coolwarm orientation
+
+        plt.axis('off')
+        plt.tight_layout()
+        file_name = plot_dir + '/regNetworks/community_' + str(comm) + '.png'
+
+        plt.savefig(file_name, dpi=300)
+        print("Saving KEGG pathway word clouds to %s" %file_name)
+        if show:
+            plt.show()
