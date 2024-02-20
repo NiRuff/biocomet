@@ -223,46 +223,79 @@ class PPIGraph:
     def set_plot_dir(self, plot_dir):
         self.plot_dir = plot_dir
 
-    def plot_arc(self):
+    def plot_arc(self, show=True, background='transparent'):
 
-        if self.partition is None:
-            raise ValueError("Partition not conducted yet. Please run PPIGraph.community_detection() first.")
+        if self.partition == None:
+            print('Community detection necessary first. Starting community detection now with default parameters.')
+            self.community_detection()
 
-        elif self.func_annotation is None:
-            print("No functional annotation done yet. Plot contains all partitions now.")
+        if self.func_annotation == None:
+            print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
+            self.get_functional_annotation()
 
-        plot_nv(self.network, self.partition, self.plot_dir, legend=True, kind='ArcPlots')
+        plot_nv(self.network, self.partition, self.plot_dir, legend=True, kind='ArcPlots', show=show, background=background)
 
-    def plot_circos(self):
+    def plot_circos(self, show=True, background='transparent'):
 
-        if self.partition is None:
-            raise ValueError("Partition not conducted yet. Please run PPIGraph.community_detection() first.")
+        if self.partition == None:
+            print('Community detection necessary first. Starting community detection now with default parameters.')
+            self.community_detection()
 
-        elif self.func_annotation is None:
-            print("No functional annotation done yet. Plot contains all partitions now.")
+        if self.func_annotation == None:
+            print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
+            self.get_functional_annotation()
 
-        plot_nv(self.network, self.partition, self.plot_dir, legend=True, kind='CircosPlots')
+        plot_nv(self.network, self.partition, self.plot_dir, legend=True, kind='CircosPlots', show=show, background=background)
 
-    def plot_PPI(self):
-        plotPPI(self)
+    def plot_PPI(self, full_network=False, show=True, background='transparent'):
+        if full_network:
+            plotPPI(self, full_network=True, show=show, background=background)
+        else:
+            if self.partition == None:
+                print('Community detection necessary first. Starting community detection now with default parameters.')
+                self.community_detection()
+            plotPPI(self, full_network=False, show=show, background=background)
 
-    def plot_Wordclouds(self, categories='default'):
+    def plot_Wordclouds(self, categories='default', show=True, background='transparent'):
+        if self.partition == None:
+            print('Community detection necessary first. Starting community detection now with default parameters.')
+            self.community_detection()
+
+        if self.func_annotation == None:
+            print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
+            self.get_functional_annotation()
+
         if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
             plotWordclouds(self.func_annotation,
                            categories=categories,
-                           plot_dir=self.plot_dir)
+                           plot_dir=self.plot_dir, show=show, background=background)
         else:
             raise AttributeError("categories argument not set properly. Specify list of databases or "
                                  "one of the following strings 'all'/'default'/'pathways'")
 
-    def plot_Wordclouds_PPI(self, categories='default'):
+    def plot_Wordclouds_PPI(self, categories='default', show=True, background='transparent'):
+        if self.partition == None:
+            print('Community detection necessary first. Starting community detection now with default parameters.')
+            self.community_detection()
+
+        if self.func_annotation == None:
+            print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
+            self.get_functional_annotation()
+
         if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
-            plotWordCloudsPPI(self, categories=categories)
+            plotWordCloudsPPI(self, categories=categories, show=show, background=background)
         else:
             raise AttributeError("categories argument not set properly. Specify list of databases or "
                                  "one of the following strings 'all'/'default'/'pathways'")
 
-    def plotKEGG(self, pathway='all', community='all', show=True, transparency=.5):
+    def plot_KEGG(self, pathway='all', community='all', show=True, transparency=.5, background='transparent'):
+
+        if self.partition == None:
+            print('Community detection necessary first. Starting community detection now with default parameters.')
+            self.community_detection()
+        if self.func_annotation == None:
+            print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
+            self.get_functional_annotation()
 
         if self.reg_list is not None:
             # Verify gene list and regulation list compatibility
@@ -283,7 +316,7 @@ class PPIGraph:
                     for pathway_id, genes in pathway_genes_dict:
                         gene_reg_dict = {k:v for k,v in self.gene_reg_dict.items() if k in genes}
                         visualize_KEGG(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
-                                       plot_dir=self.plot_dir, transparency=transparency, community=community, show=show)
+                                       plot_dir=self.plot_dir, transparency=transparency, community=community, show=show, background=background)
                 else:
                     print(pathway + ' not found in sig. results of community ' + community)
 
@@ -295,7 +328,7 @@ class PPIGraph:
                         for pathway_id, genes in pathway_genes_dict:
                             gene_reg_dict = {k:v for k,v in self.gene_reg_dict.items() if k in genes}
                             visualize_KEGG(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
-                                           plot_dir=self.plot_dir, transparency=transparency, community=comm, show=show)
+                                           plot_dir=self.plot_dir, transparency=transparency, community=comm, show=show, background=background)
         else:
             if community != 'all':  # implement all pathways of given community
                 df = self.func_annotation[community]  # just specific community's df
@@ -304,7 +337,7 @@ class PPIGraph:
                 for pathway_id, genes in pathway_genes_dict:
                     gene_reg_dict = {k: v for k, v in self.gene_reg_dict.items() if k in genes}
                     visualize_KEGG(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
-                                   plot_dir=self.plot_dir, transparency=transparency, community=community, show=show)
+                                   plot_dir=self.plot_dir, transparency=transparency, community=community, show=show, background=background)
             else: # all pathways all communities
                 for comm, df in self.func_annotation.items():
                     df_kegg = df[df['category'] == 'KEGG']
@@ -312,13 +345,17 @@ class PPIGraph:
                     for pathway_id, genes in pathway_genes_dict:
                         gene_reg_dict = {k:v for k,v in self.gene_reg_dict.items() if k in genes}
                         visualize_KEGG(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
-                                       plot_dir=self.plot_dir, transparency=transparency, community=comm, show=show)
+                                       plot_dir=self.plot_dir, transparency=transparency, community=comm, show=show, background=background)
 
-    def plot_reg_networks(self, community='all', show=True):
-        if self.partition is None:
-            print('Community detection necessary first. Starting community detection now with default parameters.')
-            self.community_detection()
-        plotRegNetworks(self.network, self.partition, self.plot_dir, community=community, show=show)
+    def plot_reg_networks(self, full_network=False, community='all', show=True, background='transparent'):
+        if full_network:
+            plotRegNetworks(self.network, self.partition, self.plot_dir, full_network=True, community=community, show=show,
+                            background=background)
+        else:
+            if self.partition is None:
+                print('Community detection necessary first. Starting community detection now with default parameters.')
+                self.community_detection()
+            plotRegNetworks(self.network, self.partition, self.plot_dir, full_network=False, community=community, show=show, background=background)
 
 
 def to_igraph(network):

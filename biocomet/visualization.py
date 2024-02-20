@@ -23,11 +23,11 @@ import requests
 import io
 import re
 import xml.etree.ElementTree as ET
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageColor
 from io import BytesIO
 
 
-def plot_nv(G, sigPartition, plot_dir='.', legend=True, kind='ArcPlots', show=True):
+def plot_nv(G, sigPartition, plot_dir='.', legend=True, kind='ArcPlots', show=True, background='transparent'):
 
     pathlib.Path(plot_dir + "/" + kind + "/").mkdir(parents=True, exist_ok=True)
 
@@ -88,12 +88,17 @@ def plot_nv(G, sigPartition, plot_dir='.', legend=True, kind='ArcPlots', show=Tr
         ax.legend(custom_lines, legend_values, title="Score")
 
     file_name = plot_dir + "/" + kind + "/PartitionedNetwork.png"
-    print("Saving plots to %s" % file_name)
-    plt.tight_layout()
-    plt.savefig(file_name, dpi=300)
+    print("Saving network plots to %s" % file_name)
+    change_background_color(plt.gcf(), plt.gca(), background)
+
+    plt.savefig(file_name, dpi=300, bbox_inches='tight')
+    if show:
+        plt.show()
+    plt.close()
 
 
-def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True):
+
+def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True, background='transparent'):
     if type(categories) != str:
         pass
     elif categories.lower() == 'pathways':
@@ -126,7 +131,10 @@ def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True):
             df = df[df['category'].isin(categories)]
 
         # Create a word cloud
-        wc = WordCloud(background_color='white', width=1600, height=800,)
+        if background == 'transparent':
+            wc = WordCloud(background_color=None, mode="RGBA", width=1600, height=800, )
+        else:
+            wc = WordCloud(background_color=background, width=1600, height=800,)
         weights = dict(zip(df['description'], -np.log10(df['fdr'])))
         try:
             wc.generate_from_frequencies(weights)
@@ -143,7 +151,6 @@ def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True):
 
         # Display the word cloud
         plt.figure(commNum)
-        plt.tight_layout()
         plt.gcf().set_size_inches(15,8)
         plt.title(f'Community {commNum}: Functional Annotation')
         plt.imshow(wc, interpolation='bilinear')
@@ -153,17 +160,41 @@ def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True):
         patches = [mpatches.Patch(color=color, label=category) for category, color in color_map.items()]
         plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc='upper left')
 
+        change_background_color(plt.gcf(), plt.gca(), background)
+
         file_name = plot_dir + "/WordClouds/community " + str(commNum) + "'s_wordcloud.png"
         print("Saving word clouds to %s" % file_name)
 
-        plt.savefig(file_name, dpi=300)
+        plt.savefig(file_name, dpi=300, bbox_inches='tight')
         if show:
             plt.show()
         plt.close()
 
+def change_background_color(fig, ax, background):
+    # Set the entire figure background color
+    if background == 'transparent':
+        fig.patch.set_alpha(0)  # Make the background of the figure transparent
+        # For the subplots, in case you want them transparent as well
+        ax.patch.set_alpha(0)
+    else:
+        # Convert color name or hex to RGBA tuple
+        if isinstance(background, str):
+            # Simple conversion for known colors, extend this as needed
+            color_converter = {'red': (255, 0, 0), 'blue': (0, 0, 255), 'green': (0, 255, 0)}
+            new_background = color_converter.get(background.lower(), None)  # Default None if color is unknown
+            if background.startswith('#'):  # For hex colors
+                # Directly use the hex color for the facecolor
+                new_background = background
+        else:
+            new_background = background  # Assuming background is already an RGBA tuple or hex color
 
-def plotPPI(PPIGraph, show=True):
+        if new_background:
+            fig.patch.set_facecolor(new_background)
+            # Also set subplot backgrounds if needed
+            ax.set_facecolor(new_background)
 
+
+def plotPPI(PPIGraph, full_network=False, show=True, background='transparent'):
     pathlib.Path(PPIGraph.plot_dir + "/PPI_networks/").mkdir(parents=True, exist_ok=True)
 
     if PPIGraph.physical:
@@ -177,25 +208,12 @@ def plotPPI(PPIGraph, show=True):
 
     request_url = "/".join([string_api_url, output_format, method])
 
-    # create dict of commNum: all comm genes
-    allCommGeneSets = dict()
-    for commNum in pd.Series(PPIGraph.partition.values()).sort_values().unique():
-        commGeneSet = [k for k, v in PPIGraph.partition.items() if v == commNum]
-        allCommGeneSets[commNum] = commGeneSet
+    if full_network:
+        # add code for plotting the full network
 
-    # add comm -1 to funcAnnots:
-    # PPIGraph.func_annotation[-1] = pd.DataFrame({'description': ['No significant functional enrichment'],
-    #                                'fdr': [0.05],
-    #                                'category': ['RCTM']
-    #                                })
-
-    for commNum, df in PPIGraph.func_annotation.items():
-
-        # PPI network part
-        commGeneSet = allCommGeneSets[commNum]
 
         params = {
-            "identifiers": "%0d".join(commGeneSet),  # your protein
+            "identifiers": "%0d".join(PPIGraph.gene_list),  # your protein
             "species": PPIGraph.organism,  # species NCBI identifier
             "network_flavor": "actions",  # show confidence links
             "caller_identity": "comet",  # your app name
@@ -205,18 +223,55 @@ def plotPPI(PPIGraph, show=True):
 
         response = requests.post(request_url, data=params)
 
-        file_name = PPIGraph.plot_dir + "/PPI_networks/community " + str(commNum) + "'s_network.png"
+        file_name = PPIGraph.plot_dir + "/PPI_networks/full_network.png"
         print("Saving interaction network to %s" % file_name)
+
+        change_background_color(plt.gcf(), plt.gca(), background)
 
         with open(file_name, 'wb') as fh:
             fh.write(response.content)
 
         if show:
-            image = Image(response.content)
+            image = Image.open(file_name)
             display(image)
+        plt.close()
 
 
-def plotWordCloudsPPI(PPIGraph, categories='default', show=True):
+    else:
+
+        # create dict of commNum: all comm genes
+        allCommGeneSets = dict()
+        for commNum in pd.Series(PPIGraph.partition.values()).sort_values().unique():
+            commGeneSet = [k for k, v in PPIGraph.partition.items() if v == commNum]
+            allCommGeneSets[commNum] = commGeneSet
+
+        for commNum, commGeneSet in allCommGeneSets.items():
+
+            params = {
+                "identifiers": "%0d".join(commGeneSet),  # your protein
+                "species": PPIGraph.organism,  # species NCBI identifier
+                "network_flavor": "actions",  # show confidence links
+                "caller_identity": "comet",  # your app name
+                "required_score": str(PPIGraph.min_score),
+                "network_type": network_type  # network type
+            }
+
+            response = requests.post(request_url, data=params)
+
+            file_name = PPIGraph.plot_dir + "/PPI_networks/community " + str(commNum) + "'s_network.png"
+            print("Saving interaction network to %s" % file_name)
+
+            change_background_color(plt.gcf(), plt.gca(), background)
+
+            with open(file_name, 'wb') as fh:
+                fh.write(response.content)
+
+            if show:
+                image = Image.open(file_name)
+                display(image)
+
+
+def plotWordCloudsPPI(PPIGraph, categories='default', show=True, background='transparent'):
     if type(categories) != str:
         pass
     elif categories.lower() == 'pathways':
@@ -271,7 +326,11 @@ def plotWordCloudsPPI(PPIGraph, categories='default', show=True):
         df = df[df['category'].isin(categories)]
 
         # Create a word cloud
-        wc = WordCloud(background_color='white', width=1600, height=800,)
+        if background == 'transparent':
+            wc = WordCloud(background_color=None, mode="RGBA", width=1600, height=800, )
+        else:
+            wc = WordCloud(background_color=background, width=1600, height=800, )
+
         weights = dict(zip(df['description'], -np.log10(df['fdr'])))
         try:
             wc.generate_from_frequencies(weights)
@@ -322,23 +381,31 @@ def plotWordCloudsPPI(PPIGraph, categories='default', show=True):
         axs[1].legend(handles=patches, bbox_to_anchor=(1.05, 1), loc='upper left')
 
         file_name = PPIGraph.plot_dir + "/WordCloudPPI_networks/community " + str(commNum) + "'s_ppi_wordcloud.png"
+
+        change_background_color(fig, axs[0], background)
+        change_background_color(fig, axs[1], background)
+
         print("Saving PPI word clouds to %s" % file_name)
-        plt.tight_layout()
-        plt.savefig(file_name, dpi=300)
+        plt.savefig(file_name, dpi=300, bbox_inches='tight')
+
         if show:
             plt.show()
         plt.close()
 
 
-def visualize_KEGG(pathway_id, gene_reg_dict, organism, plot_dir=".", transparency=.5, community=None, show=True):
+def visualize_KEGG(pathway_id, gene_reg_dict, organism, plot_dir=".", transparency=.5, community=None, show=True, background='transparent'):
     gene_uniprot_dict = convert_gene_symbols_to_uniprot_mygene(gene_reg_dict.keys(), organism=organism)
 
     uniprot_reg_dict = {}
     for gene, uniprot in gene_uniprot_dict.items():
         if isinstance(uniprot, list):
+            print(f"Multiple UniProt IDs found for {gene}.")
+            # Join the UniProt IDs into a single string separated by ", "
+            uni_ids_str = ", ".join(uniprot)
             for uni in uniprot:
                 uniprot_reg_dict[uni] = gene_reg_dict[gene]
-                print(f"Key {gene} from gene_reg_dict mapped to value {uni} in uniprot_reg_dict.")
+            # Print the gene mapping to the joined string of UniProt IDs
+            print(f"Mapping {gene} to {uni_ids_str}.")
         else:
             uniprot_reg_dict[uniprot] = gene_reg_dict[gene]
 
@@ -347,14 +414,14 @@ def visualize_KEGG(pathway_id, gene_reg_dict, organism, plot_dir=".", transparen
     kegg_reg_dict = {k: [uniprot_reg_dict[uni] for uni in v if uni in uniprot_reg_dict] for k, v in
                      kegg_uniprots_dict.items()}
 
-    annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=plot_dir, transparency=transparency, community=community, show=show)
+    annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=plot_dir, transparency=transparency, community=community, show=show, background=background)
 
 
-def annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=".", transparency=.5, community=None, show=True):
+def annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=".", transparency=.5, community=None, show=True, background='transparent'):
 
     # ensure dir existence
     pathlib.Path(plot_dir + "/KEGG/").mkdir(parents=True, exist_ok=True)
-    if community:
+    if community is not None:
         pathlib.Path(plot_dir + "/KEGG/" + str(community) + "/").mkdir(parents=True, exist_ok=True)
 
     # Fetch the KGML content to get information about KEGG IDs
@@ -443,16 +510,18 @@ def annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=".", transpare
     plt.imshow(img_with_overlay)
     plt.axis('off')
 
-    plt.tight_layout()
-    if community:  # if specified
+    change_background_color(plt.gcf(), plt.gca(), background)
+
+    if community is not None:  # if specified
         file_name = plot_dir + '/KEGG/' + str(community) + '/' + pathway_id + '.png'
     else:  # if unspecified
-        file_name =plot_dir + "/KEGG/" + pathway_id + '.png'
+        file_name = plot_dir + "/KEGG/" + pathway_id + '.png'
 
-    plt.savefig(file_name, dpi=300)
-    print("Saving KEGG pathway word clouds to %s" %file_name)
+    plt.savefig(file_name, dpi=300, bbox_inches='tight')
+    print("Saving KEGG pathways to %s" %file_name)
     if show:
         plt.show()
+    plt.close()
 
 def fetch_pathway_kgml(pathway_id):
     url = f"http://rest.kegg.jp/get/{pathway_id}/kgml"
@@ -535,30 +604,51 @@ def uniprot_to_kegg_dict(uniprot_ids):
             print(f"Failed to fetch data for UniProt ID {uniprot_id}. Status code: {response.status_code}")
     return kegg_to_uniprots
 
+def scale_parameters_based_on_network_size(G, base_node_size=1500, base_font_size=8, base_edge_width=4, base_fig_size=12):
+    """
+    Adjust node size, font size, and edge width based on the number of nodes in the graph.
 
-def plotRegNetworks(G, partition, plot_dir=".", community='all', show=True):
+    :param G: The graph for which to scale parameters.
+    :param base_node_size: Base node size to scale from.
+    :param base_font_size: Base font size to scale from.
+    :param base_edge_width: Base edge width to scale from.
+    :return: Tuple of (node_size, font_size, edge_width) after scaling.
+    """
+    num_nodes = len(G.nodes)
+
+    # Define scaling factors - these values are adjustable based on desired appearance
+    if num_nodes < 25:
+        scale_factor = 1.0
+    elif num_nodes < 50:
+        scale_factor = 0.8
+    elif num_nodes < 75:
+        scale_factor = 0.6
+    elif num_nodes < 100:
+        scale_factor = 0.4
+    elif num_nodes < 200:
+        scale_factor = 0.3
+    else:
+        scale_factor = 0.25
+
+    font_size = base_font_size / scale_factor
+    fig_size = base_fig_size / scale_factor
+
+    return font_size, fig_size
+
+def plotRegNetworks(G, partition, plot_dir=".", full_network=False, community='all', show=True, background='transparent'):
 
     # ensure dir existence
     pathlib.Path(plot_dir + "/regNetworks/").mkdir(parents=True, exist_ok=True)
 
-    if community == 'all':
-        communities = communities = set(partition.values())
-        all_regulations = [G.nodes[node]['regulation'] for node in G.nodes]
-        vmin = min(all_regulations) if min(all_regulations) < -1 else -1
-        vmax = max(all_regulations) if max(all_regulations) > 1 else 1
-    else:
-        communities = [community]
-
-    for comm in communities:
-
+    if full_network: #community parameter ignored here
         # Create a colormap for the nodes based on their 'regulation' attribute
         cmap = plt.cm.coolwarm
-        if community != 'all':
-            # Adjust vmin and vmax for specific community
-            nodes_in_community = [node for node, c in partition.items() if c == comm]
-            regulations = [G.nodes[node]['regulation'] for node in nodes_in_community]
-            vmin = min(regulations) if min(regulations) < -1 else -1
-            vmax = max(regulations) if max(regulations) > 1 else 1
+
+        # Adjust vmin and vmax for specific community
+        nodes = G.nodes
+        regulations = [G.nodes[node]['regulation'] for node in nodes]
+        vmin = min(regulations) if min(regulations) < -1 else -1
+        vmax = max(regulations) if max(regulations) > 1 else 1
         norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
 
         # Create the original greyscale colormap for edges
@@ -567,31 +657,29 @@ def plotRegNetworks(G, partition, plot_dir=".", community='all', show=True):
             "dark_grey", cmap_grey(np.linspace(0.3, 1, 256))
         )
 
-        # Filter nodes by community using the partition dictionary
-        nodes_in_community = [node for node, c in partition.items() if c == comm]
-        G_sub = G.subgraph(nodes_in_community)
-
         # Calculate the layout of the graph
-        pos = nx.kamada_kawai_layout(G_sub)
+        pos = nx.kamada_kawai_layout(G)
+
+        # Calculate dynamic sizes
+        font_size_legend, fig_size = scale_parameters_based_on_network_size(G)
 
         # Prepare figure
-        plt.figure(figsize=(12, 12))
-        plt.title(f'Network Visualization for Community {comm}')
+        plt.figure(figsize=(fig_size, fig_size))
+        plt.title(f'Network Visualization for Full Network')
 
         # Node colors and sizes based on 'regulation' attribute
-        node_colors = [cmap(norm(G_sub.nodes[node]['regulation'])) for node in G_sub.nodes]
-        node_sizes = [1500 for node in G_sub.nodes]  # Example scaling
+        node_colors = [cmap(norm(G.nodes[node]['regulation'])) for node in G.nodes]
 
         # Normalize edge weights for width and alpha
-        edge_weights_raw = np.array([G_sub.edges[edge]['weight'] for edge in G_sub.edges])
-        edge_weights = edge_weights_raw * 4  # Adjust scaling as necessary
+        edge_weights_raw = np.array([G.edges[edge]['weight'] for edge in G.edges])
+        edge_weights = edge_weights_raw * 4  # Now scaling with dynamic edge width
         edge_alphas = np.interp(edge_weights_raw, (edge_weights_raw.min(), edge_weights_raw.max()), (0.1, 1))
 
-        # Draw the network
-        nx.draw_networkx_edges(G_sub, pos, width=edge_weights, edge_color=edge_alphas, edge_cmap=dark_grey_cmap, alpha=0.5)
-        nx.draw_networkx_nodes(G_sub, pos, node_size=node_sizes, node_color=node_colors, cmap=cmap)
+        # Draw the network with dynamic sizes
+        nx.draw_networkx_edges(G, pos, width=edge_weights, edge_color=edge_alphas, edge_cmap=dark_grey_cmap, alpha=0.5)
+        nx.draw_networkx_nodes(G, pos, node_size=1500, node_color=node_colors, cmap=cmap)
 
-        # Custom method to draw labels with outlines for readability
+        # Adjust label drawing to use the dynamic font size
         for node, (x, y) in pos.items():
             text = node
             plt.text(x, y, text, fontsize=8, ha='center', va='center',
@@ -603,14 +691,97 @@ def plotRegNetworks(G, partition, plot_dir=".", community='all', show=True):
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])
         cbar = plt.colorbar(sm, ax=ax, orientation='vertical', fraction=0.046, pad=0.04)
-        cbar.set_label('Regulation')
+        cbar.set_label('Regulation', fontsize=font_size_legend)  # Adjust the font size for the label here
         cbar.ax.invert_yaxis()  # Invert to match coolwarm orientation
 
-        plt.axis('off')
-        plt.tight_layout()
-        file_name = plot_dir + '/regNetworks/community_' + str(comm) + '.png'
+        # Adjust font size for the tick labels
+        cbar.ax.tick_params(labelsize=font_size_legend-2)
 
-        plt.savefig(file_name, dpi=300)
-        print("Saving KEGG pathway word clouds to %s" %file_name)
-        if show:
+        plt.axis('off')
+        file_name = plot_dir + '/regNetworks/fullNetwork.png'
+
+        change_background_color(plt.gcf(), plt.gca(), background)
+
+        plt.savefig(file_name, dpi=300, bbox_inches='tight')
+        print("Saving regulatory network to %s" % file_name)
+        if show == True:
             plt.show()
+        plt.close()
+
+    else:
+
+        if community == 'all':
+            communities = set(partition.values())
+            all_regulations = [G.nodes[node]['regulation'] for node in G.nodes]
+            vmin = min(all_regulations) if min(all_regulations) < -1 else -1
+            vmax = max(all_regulations) if max(all_regulations) > 1 else 1
+        else:
+            communities = [community]
+
+        for comm in communities:
+
+            # Create a colormap for the nodes based on their 'regulation' attribute
+            cmap = plt.cm.coolwarm
+            if community != 'all':
+                # Adjust vmin and vmax for specific community
+                nodes_in_community = [node for node, c in partition.items() if c == comm]
+                regulations = [G.nodes[node]['regulation'] for node in nodes_in_community]
+                vmin = min(regulations) if min(regulations) < -1 else -1
+                vmax = max(regulations) if max(regulations) > 1 else 1
+            norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
+
+            # Create the original greyscale colormap for edges
+            cmap_grey = plt.cm.Greys
+            dark_grey_cmap = mpl.colors.LinearSegmentedColormap.from_list(
+                "dark_grey", cmap_grey(np.linspace(0.3, 1, 256))
+            )
+
+            # Filter nodes by community using the partition dictionary
+            nodes_in_community = [node for node, c in partition.items() if c == comm]
+            G_sub = G.subgraph(nodes_in_community)
+
+            # Calculate the layout of the graph
+            pos = nx.kamada_kawai_layout(G_sub)
+
+            # Prepare figure
+            plt.figure(figsize=(12, 12))
+            plt.title(f'Network Visualization for Community {comm}')
+
+            # Node colors and sizes based on 'regulation' attribute
+            node_colors = [cmap(norm(G_sub.nodes[node]['regulation'])) for node in G_sub.nodes]
+            node_sizes = [1500 for node in G_sub.nodes]  # Example scaling
+
+            # Normalize edge weights for width and alpha
+            edge_weights_raw = np.array([G_sub.edges[edge]['weight'] for edge in G_sub.edges])
+            edge_weights = edge_weights_raw * 4  # Adjust scaling as necessary
+            edge_alphas = np.interp(edge_weights_raw, (edge_weights_raw.min(), edge_weights_raw.max()), (0.1, 1))
+
+            # Draw the network
+            nx.draw_networkx_edges(G_sub, pos, width=edge_weights, edge_color=edge_alphas, edge_cmap=dark_grey_cmap, alpha=0.5)
+            nx.draw_networkx_nodes(G_sub, pos, node_size=node_sizes, node_color=node_colors, cmap=cmap)
+
+            # Custom method to draw labels with outlines for readability
+            for node, (x, y) in pos.items():
+                text = node
+                plt.text(x, y, text, fontsize=8, ha='center', va='center',
+                         bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3', alpha=0.5))
+
+            # Draw color reference rectangle in the upper right corner
+            ax = plt.gca()
+            # Create a colorbar as a legend
+            sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+            sm.set_array([])
+            cbar = plt.colorbar(sm, ax=ax, orientation='vertical', fraction=0.046, pad=0.04)
+            cbar.set_label('Regulation')
+            cbar.ax.invert_yaxis()  # Invert to match coolwarm orientation
+
+            plt.axis('off')
+            file_name = plot_dir + '/regNetworks/community_' + str(comm) + '.png'
+
+            change_background_color(plt.gcf(), plt.gca(), background)
+
+            plt.savefig(file_name, dpi=300, bbox_inches='tight')
+            print("Saving regulatory networks to %s" %file_name)
+            if show == True:
+                plt.show()
+            plt.close()
