@@ -269,6 +269,7 @@ def plotPPI(PPIGraph, full_network=False, show=True, background='transparent'):
             if show:
                 image = Image.open(file_name)
                 display(image)
+            plt.close()
 
 
 def plotWordCloudsPPI(PPIGraph, categories='default', show=True, background='transparent'):

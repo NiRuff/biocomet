@@ -62,13 +62,13 @@ def checkFuncSignificance(PPIGraph, sig_only=True,
             description = row["description"]
             category = row["category"]
 
-            if categories is not 'all': # filter for categories
-                if (not sig_only) or (category in categories and fdr < 0.05):
+            if categories != 'all': # filter for categories
+                if (not sig_only) or (category in categories and fdr < PPIGraph.p_adj_cutoff):
                     anyProcessSig = True
                     sigCommNumbers.add(i)
 
             else: # do not filter
-                if (not sig_only) or (fdr < 0.05):
+                if (not sig_only) or (fdr < PPIGraph.p_adj_cutoff):
                     anyProcessSig = True
                     sigCommNumbers.add(i)
 

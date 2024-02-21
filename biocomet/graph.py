@@ -11,12 +11,13 @@ from .visualization import plot_nv, plotPPI, plotWordclouds, plotWordCloudsPPI, 
 
 
 class PPIGraph:
-    def __init__(self, gene_list, reg_list=None, organism='9606', min_score=400, no_text=False, physical=False, local_data=False):
+    def __init__(self, gene_list, reg_list=None, organism='9606', min_score=400, no_text=False, physical=False, local_data=False, p_adj_cutoff = 0.05):
         self.gene_list = getPreferredNames(gene_list, organism=organism)
         self.reg_list = reg_list
         self.organism = organism
         self.min_score = min_score
         self.no_text = no_text
+        self.p_adj_cutoff = p_adj_cutoff
         self.physical = physical
         self.local_data = local_data
         self.network = None         # Placeholder for the network
@@ -26,7 +27,8 @@ class PPIGraph:
         self.plot_dir = '.'
         self.gene_reg_dict = None
 
-
+    def set_p_adj_cutoff(self, p_adj_cutoff):
+        self.p_adj_cutoff = p_adj_cutoff
 
     def build_network(self):
         string_api_url = "https://string-db.org/api"
@@ -157,11 +159,16 @@ class PPIGraph:
                     (1.0 - pd.to_numeric(interactions["escore"])) *
                     (1.0 - pd.to_numeric(interactions["dscore"])))
 
-            interactions["score"] = interactions["score"] / interactions["score"].max() * 1000
+            interactions["score"] = interactions["score"] / interactions["score"].max()
+
+            if self.min_score > 1:
+                min_score = self.min_score/1000
+            else:
+                min_score = self.min_score
 
             # now remove zero scores
             if self.no_text == "strict":
-                interactions = interactions[interactions["score"] >= self.min_score]
+                interactions = interactions[interactions["score"] >= min_score]
             else:
                 interactions = interactions[interactions["score"] > 0]
 
