@@ -354,15 +354,15 @@ class PPIGraph:
                         visualize_KEGG(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
                                        plot_dir=self.plot_dir, transparency=transparency, community=comm, show=show, background=background)
 
-    def plot_reg_networks(self, full_network=False, community='all', show=True, background='transparent'):
+    def plot_reg_networks(self, full_network=False, community='all', centrality_measure='degree', show=True, background='transparent'):
         if full_network:
-            plotRegNetworks(self.network, self.partition, self.plot_dir, full_network=True, community=community, show=show,
+            plotRegNetworks(self.network, self.partition, self.plot_dir, full_network=True, centrality_measure=centrality_measure, community=community, show=show,
                             background=background)
         else:
             if self.partition is None:
                 print('Community detection necessary first. Starting community detection now with default parameters.')
                 self.community_detection()
-            plotRegNetworks(self.network, self.partition, self.plot_dir, full_network=False, community=community, show=show, background=background)
+            plotRegNetworks(self.network, self.partition, self.plot_dir, full_network=False, centrality_measure=centrality_measure, community=community, show=show, background=background)
 
 
 def to_igraph(network):

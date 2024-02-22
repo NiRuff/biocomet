@@ -650,15 +650,14 @@ def scale_parameters_based_on_network_size(G, base_node_size=1500, base_font_siz
     num_nodes = len(G.nodes)
 
     # Define scaling factors - these values are adjustable based on desired appearance
-    if num_nodes < 25:
-        scale_factor = 1.0
-    elif num_nodes < 50:
+    scale_factor = 1.0
+    if num_nodes < 50:
         scale_factor = 0.8
-    elif num_nodes < 75:
-        scale_factor = 0.6
     elif num_nodes < 100:
+        scale_factor = 0.6
+    elif num_nodes < 150:
         scale_factor = 0.4
-    elif num_nodes < 200:
+    elif num_nodes < 250:
         scale_factor = 0.3
     else:
         scale_factor = 0.25
@@ -668,7 +667,7 @@ def scale_parameters_based_on_network_size(G, base_node_size=1500, base_font_siz
 
     return font_size, fig_size
 
-def plotRegNetworks(G, partition, plot_dir=".", full_network=False, community='all', show=True, background='transparent'):
+def plotRegNetworks(G, partition, plot_dir=".", full_network=False, centrality_measure = 'degree', community='all', show=True, background='transparent'):
 
     # ensure dir existence
     pathlib.Path(plot_dir + "/regNetworks/").mkdir(parents=True, exist_ok=True)
@@ -708,27 +707,93 @@ def plotRegNetworks(G, partition, plot_dir=".", full_network=False, community='a
         edge_weights = edge_weights_raw * 4  # Now scaling with dynamic edge width
         edge_alphas = np.interp(edge_weights_raw, (edge_weights_raw.min(), edge_weights_raw.max()), (0.1, 1))
 
-        # Draw the network with dynamic sizes
-        nx.draw_networkx_edges(G, pos, width=edge_weights, edge_color=edge_alphas, edge_cmap=dark_grey_cmap, alpha=0.5)
-        nx.draw_networkx_nodes(G, pos, node_size=1500, node_color=node_colors, cmap=cmap)
+        if centrality_measure:
+            if centrality_measure == 'degree':
+                #centrality_values = nx.degree_centrality(G) # Calculate degree centrality
+                centrality_values = {node: sum(data['weight'] for _, _, data in G.edges(node, data=True)) for node in
+                                    G.nodes()} # DIY weighted degree centrality
+            elif centrality_measure == 'betweenness':
+                centrality_values = nx.betweenness_centrality(G, weight='weight') # Calculate degree centrality
+            elif centrality_measure == 'eigenvector':
+                centrality_values = nx.eigenvector_centrality(G, weight='weight')  # Calculate degree centrality
 
-        # Adjust label drawing to use the dynamic font size
+            # Normalize centrality values for visualization
+            max_centrality = max(centrality_values.values())
+            normalized_centrality = {node: 1000 + centrality / max_centrality * 1000 for node, centrality in
+                                     centrality_values.items()}
+
+            # Use normalized centrality for node size
+            node_sizes = [normalized_centrality[node] for node in G.nodes]
+        else:
+            node_sizes = [1500 for node in G.nodes]
+
+        # Custom function to draw halos
+        def draw_halos(pos, node_sizes, node_alphas, ax):
+            for node, size in node_sizes.items():
+                alpha = node_alphas[node]
+                nx.draw_networkx_nodes(G, pos, nodelist=[node], node_size=size * 1.5, node_color='yellow',
+                                       alpha=alpha, ax=ax)
+
+        # Draw color reference rectangle in the upper right corner
+        ax = plt.gca()
+
+        # Draw halos
+        node_alphas = {node: centrality / max(centrality_values.values()) for node, centrality in
+                       centrality_values.items()}
+        draw_halos(pos, normalized_centrality, node_alphas, ax)
+
+        # Draw the network
+        nx.draw_networkx_edges(G, pos, width=edge_weights, edge_color=edge_alphas, edge_cmap=dark_grey_cmap,
+                               alpha=0.5)
+        nx.draw_networkx_nodes(G, pos, node_size=node_sizes, node_color=node_colors, cmap=cmap)
+
+        # Custom method to draw labels with outlines for readability
         for node, (x, y) in pos.items():
             text = node
             plt.text(x, y, text, fontsize=8, ha='center', va='center',
                      bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3', alpha=0.5))
 
-        # Draw color reference rectangle in the upper right corner
-        ax = plt.gca()
         # Create a colorbar as a legend
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])
-        cbar = plt.colorbar(sm, ax=ax, orientation='vertical', fraction=0.046, pad=0.04)
+        # After creating the colorbar
+        cbar = plt.colorbar(sm, ax=ax, orientation='vertical', fraction=0.046 * 0.6, pad=0.04)
         cbar.set_label('Regulation', fontsize=font_size_legend)  # Adjust the font size for the label here
-        cbar.ax.invert_yaxis()  # Invert to match coolwarm orientation
+        cbar.ax.invert_yaxis()
 
-        # Adjust font size for the tick labels
-        cbar.ax.tick_params(labelsize=font_size_legend-2)
+        # Function to plot legend nodes next to the colorbar
+        def plot_legend_node_near_colorbar(node, centrality_value, position):
+            node_color = cmap(norm(G.nodes[node]['regulation']))
+            node_size = normalized_centrality[node]  # Adjust size scaling as needed
+            node_label = f"{node}\n{centrality_measure.capitalize()} {centrality_value:.2f}"
+
+            # Calculate positions relative to the colorbar
+            if position == 'above':
+                x, y = 1.02, 0.95  # Adjust these coordinates as needed
+            elif position == 'below':
+                x, y = 1.02, 0.05  # Adjust these coordinates as needed
+
+            # Transform from axis to figure coordinates
+            x_fig, y_fig = ax.transAxes.transform((x, y))
+            inv = plt.gcf().transFigure.inverted()
+            x_fig, y_fig = inv.transform((x_fig, y_fig))
+
+            # Plot the node and label in figure coordinates
+            ax_fig = plt.gcf().add_axes([x_fig, y_fig, 0.05, 0.05], anchor='C', zorder=1)
+            ax_fig.scatter(0.5, 0.5, s=node_size, color=node_color, edgecolor='black')
+            ax_fig.set_xlim(0, 1)
+            ax_fig.set_ylim(0, 1)
+            ax_fig.axis('off')
+            ax_fig.text(0.5, -0.5, node_label, ha='center', va='center', fontsize=font_size_legend-2, transform=ax_fig.transAxes)
+
+        if centrality_measure:
+            # Identify min and max centrality nodes
+            min_node = min(centrality_values, key=centrality_values.get)
+            max_node = max(centrality_values, key=centrality_values.get)
+
+            # Plot the min and max centrality nodes near the colorbar
+            plot_legend_node_near_colorbar(max_node, centrality_values[max_node], 'above')
+            plot_legend_node_near_colorbar(min_node, centrality_values[min_node], 'below')
 
         plt.axis('off')
         file_name = plot_dir + '/regNetworks/fullNetwork.png'
@@ -776,18 +841,56 @@ def plotRegNetworks(G, partition, plot_dir=".", full_network=False, community='a
             # Calculate the layout of the graph
             pos = nx.kamada_kawai_layout(G_sub)
 
+            # Calculate dynamic sizes
+            font_size_legend, fig_size = scale_parameters_based_on_network_size(G)
+
             # Prepare figure
-            plt.figure(figsize=(12, 12))
+            plt.figure(figsize=(fig_size, fig_size))
             plt.title(f'Network Visualization for Community {comm}')
 
             # Node colors and sizes based on 'regulation' attribute
             node_colors = [cmap(norm(G_sub.nodes[node]['regulation'])) for node in G_sub.nodes]
-            node_sizes = [1500 for node in G_sub.nodes]  # Example scaling
 
             # Normalize edge weights for width and alpha
             edge_weights_raw = np.array([G_sub.edges[edge]['weight'] for edge in G_sub.edges])
             edge_weights = edge_weights_raw * 4  # Adjust scaling as necessary
             edge_alphas = np.interp(edge_weights_raw, (edge_weights_raw.min(), edge_weights_raw.max()), (0.1, 1))
+
+            if centrality_measure:
+                if centrality_measure == 'degree':
+                    # centrality_values = nx.degree_centrality(G) # Calculate degree centrality
+                    centrality_values = {node: sum(data['weight'] for _, _, data in G_sub.edges(node, data=True)) for node
+                                         in
+                                         G_sub.nodes()}  # DIY weighted degree centrality
+                elif centrality_measure == 'betweenness':
+                    centrality_values = nx.betweenness_centrality(G_sub, weight='weight')  # Calculate degree centrality
+                elif centrality_measure == 'eigenvector':
+                    centrality_values = nx.eigenvector_centrality(G_sub, weight='weight')  # Calculate degree centrality
+
+                # Normalize centrality values for visualization
+                max_centrality = max(centrality_values.values())
+                normalized_centrality = {node: 1000 + centrality / max_centrality * 1000 for node, centrality in
+                                         centrality_values.items()}
+
+                # Use normalized centrality for node size
+                node_sizes = [normalized_centrality[node] for node in G_sub.nodes]
+            else:
+                node_sizes = [1500 for node in G_sub.nodes]
+
+            # Custom function to draw halos
+            def draw_halos(pos, node_sizes, node_alphas, ax):
+                for node, size in node_sizes.items():
+                    alpha = node_alphas[node]
+                    nx.draw_networkx_nodes(G_sub, pos, nodelist=[node], node_size=size * 1.5, node_color='yellow',
+                                           alpha=alpha, ax=ax)
+
+            # Draw color reference rectangle in the upper right corner
+            ax = plt.gca()
+
+            # Draw halos
+            node_alphas = {node: centrality / max(centrality_values.values()) for node, centrality in
+                           centrality_values.items()}
+            draw_halos(pos, normalized_centrality, node_alphas, ax)
 
             # Draw the network
             nx.draw_networkx_edges(G_sub, pos, width=edge_weights, edge_color=edge_alphas, edge_cmap=dark_grey_cmap, alpha=0.5)
@@ -799,22 +902,57 @@ def plotRegNetworks(G, partition, plot_dir=".", full_network=False, community='a
                 plt.text(x, y, text, fontsize=8, ha='center', va='center',
                          bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3', alpha=0.5))
 
-            # Draw color reference rectangle in the upper right corner
-            ax = plt.gca()
             # Create a colorbar as a legend
             sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
             sm.set_array([])
-            cbar = plt.colorbar(sm, ax=ax, orientation='vertical', fraction=0.046, pad=0.04)
-            cbar.set_label('Regulation')
-            cbar.ax.invert_yaxis()  # Invert to match coolwarm orientation
+            # After creating the colorbar
+            cbar = plt.colorbar(sm, ax=ax, orientation='vertical', fraction=0.046 * 0.6, pad=0.04)
+            cbar.set_label('Regulation', fontsize=font_size_legend)  # Adjust the font size for the label here
+            cbar.ax.invert_yaxis()
+
+            # Function to plot legend nodes next to the colorbar
+            def plot_legend_node_near_colorbar(node, centrality_value, position):
+                node_color = cmap(norm(G.nodes[node]['regulation']))
+                node_size = normalized_centrality[node]   # Adjust size scaling as needed
+                node_label = f"{node}\n{centrality_measure.capitalize()} {centrality_value:.2f}"
+
+                # Calculate positions relative to the colorbar
+                if position == 'above':
+                    x, y = 1.02, 0.95  # Adjust these coordinates as needed
+                elif position == 'below':
+                    x, y = 1.02, 0.05  # Adjust these coordinates as needed
+
+                # Transform from axis to figure coordinates
+                x_fig, y_fig = ax.transAxes.transform((x, y))
+                inv = plt.gcf().transFigure.inverted()
+                x_fig, y_fig = inv.transform((x_fig, y_fig))
+
+                # Plot the node and label in figure coordinates
+                ax_fig = plt.gcf().add_axes([x_fig, y_fig, 0.05, 0.05], anchor='C', zorder=1)
+                ax_fig.scatter(0.5, 0.5, s=node_size, color=node_color, edgecolor='black')
+                ax_fig.set_xlim(0, 1)
+                ax_fig.set_ylim(0, 1)
+                ax_fig.axis('off')
+                ax_fig.text(0.5, -0.5, node_label, ha='center', va='center', fontsize=font_size_legend-2, transform=ax_fig.transAxes)
+
+            if centrality_measure:
+
+                # Identify min and max centrality nodes
+                min_node = min(centrality_values, key=centrality_values.get)
+                max_node = max(centrality_values, key=centrality_values.get)
+
+                # Plot the min and max centrality nodes near the colorbar
+                plot_legend_node_near_colorbar(max_node, centrality_values[max_node], 'above')
+                plot_legend_node_near_colorbar(min_node, centrality_values[min_node], 'below')
 
             plt.axis('off')
             file_name = plot_dir + '/regNetworks/community_' + str(comm) + '.png'
 
             change_background_color(plt.gcf(), plt.gca(), background)
 
+            # Continue with saving or showing the figure
             plt.savefig(file_name, dpi=300, bbox_inches='tight')
-            print("Saving regulatory networks to %s" %file_name)
+            print("Saving regulatory networks to %s" % file_name)
             if show == True:
                 plt.show()
             plt.close()
