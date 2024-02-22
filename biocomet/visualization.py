@@ -23,7 +23,7 @@ import requests
 import io
 import re
 import xml.etree.ElementTree as ET
-from PIL import Image, ImageDraw, ImageColor
+from PIL import Image, ImageDraw
 from io import BytesIO
 import json
 import os
@@ -101,7 +101,7 @@ def plot_nv(G, sigPartition, plot_dir='.', legend=True, kind='ArcPlots', show=Tr
 
 
 def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True, background='transparent'):
-    if type(categories) != str:
+    if not isinstance(categories, str):
         pass
     elif categories.lower() == 'pathways':
         categories = ["KEGG", "WikiPathways", "RCTM"]
@@ -134,9 +134,9 @@ def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True, ba
 
         # Create a word cloud
         if background == 'transparent':
-            wc = WordCloud(background_color=None, mode="RGBA", width=1600, height=800, )
+            wc = WordCloud(background_color=None, mode="RGBA", width=1600, height=800)
         else:
-            wc = WordCloud(background_color=background, width=1600, height=800,)
+            wc = WordCloud(background_color=background, width=1600, height=800)
         weights = dict(zip(df['description'], -np.log10(df['fdr'])))
         try:
             wc.generate_from_frequencies(weights)
