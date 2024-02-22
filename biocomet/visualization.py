@@ -25,6 +25,8 @@ import re
 import xml.etree.ElementTree as ET
 from PIL import Image, ImageDraw, ImageColor
 from io import BytesIO
+import json
+import os
 
 
 def plot_nv(G, sigPartition, plot_dir='.', legend=True, kind='ArcPlots', show=True, background='transparent'):
@@ -395,25 +397,54 @@ def plotWordCloudsPPI(PPIGraph, categories='default', show=True, background='tra
 
 
 def visualize_KEGG(pathway_id, gene_reg_dict, organism, plot_dir=".", transparency=.5, community=None, show=True, background='transparent'):
-    gene_uniprot_dict = convert_gene_symbols_to_uniprot_mygene(gene_reg_dict.keys(), organism=organism)
 
-    uniprot_reg_dict = {}
-    for gene, uniprot in gene_uniprot_dict.items():
-        if isinstance(uniprot, list):
-            print(f"Multiple UniProt IDs found for {gene}.")
-            # Join the UniProt IDs into a single string separated by ", "
-            uni_ids_str = ", ".join(uniprot)
-            for uni in uniprot:
-                uniprot_reg_dict[uni] = gene_reg_dict[gene]
-            # Print the gene mapping to the joined string of UniProt IDs
-            print(f"Mapping {gene} to {uni_ids_str}.")
-        else:
-            uniprot_reg_dict[uniprot] = gene_reg_dict[gene]
+    if organism == 'human':
+        organism = 9606
+    elif organism == 'mouse':
+        organism = 10090
 
-    kegg_uniprots_dict = uniprot_to_kegg_dict(uniprot_reg_dict.keys())
+    # Path to the JSON file
+    json_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'org_gene_to_kegg.json')
+    with open(json_path, 'r') as file:
+        gene_kegg_dict = json.load(file)
 
-    kegg_reg_dict = {k: [uniprot_reg_dict[uni] for uni in v if uni in uniprot_reg_dict] for k, v in
-                     kegg_uniprots_dict.items()}
+
+    # check keys of org_gene_to_kegg.json
+    if str(organism) in gene_kegg_dict.keys():
+        # Creating a new dict for kegg_id:reg
+        kegg_reg_dict = {}
+
+        for gene, kegg_ids in gene_kegg_dict[str(organism)].items():
+            reg = gene_reg_dict.get(gene)
+            if reg is not None:
+                if len(kegg_ids) > 1:
+                    print(f"Mapping {gene} to " + ", ".join(kegg_ids))
+                for kegg_id in kegg_ids:
+                    # Initialize the list if the kegg_id is encountered for the first time
+                    if kegg_id not in kegg_reg_dict:
+                        kegg_reg_dict[kegg_id] = []
+                    # Append the reg value to the list of reg values for the kegg_id
+                    kegg_reg_dict[kegg_id].append(reg)
+    else:    # if it does not match organism, use old functionality
+        gene_uniprot_dict = convert_gene_symbols_to_uniprot_mygene(gene_reg_dict.keys(), organism=organism)
+
+        uniprot_reg_dict = {}
+        for gene, uniprot in gene_uniprot_dict.items():
+            if isinstance(uniprot, list):
+                print(f"Multiple UniProt IDs found for {gene}.")
+                # Join the UniProt IDs into a single string separated by ", "
+                uni_ids_str = ", ".join(uniprot)
+                for uni in uniprot:
+                    uniprot_reg_dict[uni] = gene_reg_dict[gene]
+                # Print the gene mapping to the joined string of UniProt IDs
+                print(f"Mapping {gene} to {uni_ids_str}.")
+            else:
+                uniprot_reg_dict[uniprot] = gene_reg_dict[gene]
+
+        kegg_uniprots_dict = uniprot_to_kegg_dict(uniprot_reg_dict.keys())
+
+        kegg_reg_dict = {k: [uniprot_reg_dict[uni] for uni in v if uni in uniprot_reg_dict] for k, v in
+                         kegg_uniprots_dict.items()}
 
     annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=plot_dir, transparency=transparency, community=community, show=show, background=background)
 
@@ -459,7 +490,7 @@ def annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=".", transpare
         all_regulations = [kegg_reg_dict[kegg_id] for kegg_id in kegg_ids if kegg_id in kegg_reg_dict]
 
         # Flatten the list of lists into a single list of regulations
-        regulations = [reg for sublist in all_regulations for reg in sublist]
+        regulations = sorted([reg for sublist in all_regulations for reg in sublist])
 
         num_regs = len(regulations)
         part_width = w / max(num_regs, 1)
@@ -583,6 +614,7 @@ def convert_gene_symbols_to_uniprot_mygene(gene_symbols, organism='9606'):
                 print(f"No UniProt ID found for the gene symbol: {gene_symbol}.")
         else:
             print(f"Failed to fetch data from MyGene.info API for {gene_symbol}. Status code: {response.status_code}")
+            print(hit)
             gene_to_uniprot[gene_symbol] = None
     return gene_to_uniprot
 
