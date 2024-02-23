@@ -230,7 +230,7 @@ class PPIGraph:
     def set_plot_dir(self, plot_dir):
         self.plot_dir = plot_dir
 
-    def plot_arc(self, show=True, background='transparent'):
+    def plot_arc(self, show=True, background='transparent', legend=True):
 
         if self.partition == None:
             print('Community detection necessary first. Starting community detection now with default parameters.')
@@ -240,9 +240,9 @@ class PPIGraph:
             print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
             self.get_functional_annotation()
 
-        plot_nv(self.network, self.partition, self.plot_dir, legend=True, kind='ArcPlots', show=show, background=background)
+        plot_nv(self.network, self.partition, self.plot_dir, legend=legend, kind='ArcPlots', show=show, background=background)
 
-    def plot_circos(self, show=True, background='transparent'):
+    def plot_circos(self, show=True, background='transparent', legend=True):
 
         if self.partition == None:
             print('Community detection necessary first. Starting community detection now with default parameters.')
@@ -252,7 +252,7 @@ class PPIGraph:
             print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
             self.get_functional_annotation()
 
-        plot_nv(self.network, self.partition, self.plot_dir, legend=True, kind='CircosPlots', show=show, background=background)
+        plot_nv(self.network, self.partition, self.plot_dir, legend=legend, kind='CircosPlots', show=show, background=background)
 
     def plot_PPI(self, full_network=False, show=True, background='transparent'):
         if full_network:
