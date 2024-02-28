@@ -3,7 +3,7 @@ import leidenalg
 import numpy as np
 
 
-def apply_louvain(G, iterations=100):
+def apply_louvain(G, iterations=10):
     # Apply Louvain method to the graph
     partition_list = []
     modularity_list = []
@@ -34,7 +34,7 @@ def apply_louvain(G, iterations=100):
 
     return partition_list[max_index]
 
-def apply_leiden(ig_graph, iterations=100):
+def apply_leiden(ig_graph, iterations=10):
     # Apply Leiden algorithm to the graph
     partition_list = []
     modularity_list = []
@@ -53,7 +53,7 @@ def apply_leiden(ig_graph, iterations=100):
     for i in range(iterations):
         # Apply the Leiden algorithm
         partition = leidenalg.find_partition(ig_graph, leidenalg.ModularityVertexPartition,
-                                             weights=ig_graph.es["weight"])
+                                             weights=ig_graph.es["weight"], n_iterations=5)
         # Calculate modularity
         modularity = partition.modularity
 

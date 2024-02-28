@@ -276,7 +276,7 @@ def plotPPI(PPIGraph, full_network=False, show=True, background='transparent'):
             plt.close()
 
 
-def plotWordCloudsPPI(PPIGraph, categories='default', show=True, background='transparent'):
+def plotWordCloudsPPI(PPIGraph, categories='default', full_network = False, show=True, background='transparent'):
     if type(categories) != str:
         pass
     elif categories.lower() == 'pathways':
@@ -291,11 +291,16 @@ def plotWordCloudsPPI(PPIGraph, categories='default', show=True, background='tra
         categories = ["KEGG", "WikiPathways", "RCTM",
                       "NetworkNeighborAL", "SMART", "COMPARTMENTS", "Keyword", "TISSUES", "Pfam",
                       "MPO", "InterPro", ]
+
     # gather all categories
     elif categories.lower() == 'all':
         categories = set()
-        for df in PPIGraph.func_annotation.values():
-            categories.update(df['category'].unique())
+        if full_network:
+            for df in PPIGraph.func_annotation_full_network.values():
+                categories.update(df['category'].unique())
+        else:
+            for df in PPIGraph.func_annotation.values():
+                categories.update(df['category'].unique())
 
     pathlib.Path(PPIGraph.plot_dir + "/WordCloudPPI_networks/").mkdir(parents=True, exist_ok=True)
 
@@ -314,18 +319,18 @@ def plotWordCloudsPPI(PPIGraph, categories='default', show=True, background='tra
 
     request_url = "/".join([string_api_url, output_format, method])
 
-    # create dict of commNum: all comm genes
-    allCommGeneSets = dict()
-    for commNum in pd.Series(PPIGraph.partition.values()).sort_values().unique():
-        commGeneSet = [k for k, v in PPIGraph.partition.items() if v == commNum]
-        allCommGeneSets[commNum] = commGeneSet
-
-    # add comm -1 to funcAnnots:
-    funcAnnots = PPIGraph.func_annotation.copy()
-    # funcAnnots[-1] = pd.DataFrame({'description': ['No significant functional enrichment'],
-    #                                'fdr': [0.05],
-    #                                'category': ['RCTM']
-    #                                })
+    if full_network:
+        allCommGeneSets = {'Full Network':[n for n in PPIGraph.network.nodes]}
+        # set funcAnnots accordingly
+        funcAnnots = PPIGraph.func_annotation_full_network.copy()
+    else:
+        # create dict of commNum: all comm genes
+        allCommGeneSets = dict()
+        for commNum in pd.Series(PPIGraph.partition.values()).sort_values().unique():
+            commGeneSet = [k for k, v in PPIGraph.partition.items() if v == commNum]
+            allCommGeneSets[commNum] = commGeneSet
+        # set funcAnnots accordingly
+        funcAnnots = PPIGraph.func_annotation.copy()
 
     for commNum, df in funcAnnots.items():
         df = df[df['category'].isin(categories)]
@@ -966,8 +971,20 @@ def plotRegNetworks(G, partition, plot_dir=".", full_network=False, centrality_m
                 ax_fig.set_xlim(0, 1)
                 ax_fig.set_ylim(0, 1)
                 ax_fig.axis('off')
-                ax_fig.text(0.5, 0, node_label, ha='center', va='center', fontsize=font_size_legend - 2,
+
+                # Node name
+                ax_fig.text(0.5, -0.2, f"{node}\n\n", ha='center', va='center', fontsize=font_size_legend,
                             transform=ax_fig.transAxes)
+
+                # Centrality measure (smaller font size)
+                measure_text = "\nWeighted " if centrality_measure == 'degree' else "\n"
+                measure_text += f"{centrality_measure.capitalize()} Centrality\n"
+                ax_fig.text(0.5, -0.2, measure_text, ha='center', va='center',
+                            fontsize=font_size_legend - 2, transform=ax_fig.transAxes)
+
+                # Centrality value (original font size)
+                ax_fig.text(0.5, -0.2, f"\n\n{centrality_value:.2f}", ha='center', va='center',
+                            fontsize=font_size_legend, transform=ax_fig.transAxes)
 
             if centrality_measure:
 

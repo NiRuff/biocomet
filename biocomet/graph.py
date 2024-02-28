@@ -5,14 +5,16 @@ import requests
 import igraph as ig
 from .utils import download_and_load_dataframe
 from .community_detection import apply_leiden, apply_louvain
-from .functional_annotation import checkFuncSignificance
+from .functional_annotation import checkFuncSignificance, checkFuncSignificanceFullNetwork
 from .visualization import plot_nv, plotPPI, plotWordclouds, plotWordCloudsPPI, visualize_KEGG, plotRegNetworks
-
+import os
+import urllib.request
+from tqdm import tqdm
 
 
 class PPIGraph:
-    def __init__(self, gene_list, reg_list=None, organism='9606', min_score=400, no_text=False, physical=False, local_data=False, p_adj_cutoff = 0.05):
-        self.gene_list = getPreferredNames(gene_list, organism=organism)
+    def __init__(self, gene_list, reg_list=None, organism='9606', min_score=400, no_text=False, physical=False, auto_load=False, local_data=False, p_adj_cutoff = 0.05, min_comm_size=3):
+        self.gene_list = gene_list
         self.reg_list = reg_list
         self.organism = organism
         self.min_score = min_score
@@ -21,38 +23,106 @@ class PPIGraph:
         self.physical = physical
         self.local_data = local_data
         self.network = None         # Placeholder for the network
-        self.build_network()        # Build the network upon initialization
         self.partition = None       # Placeholder for the partition
         self.func_annotation = None # Placeholder for the functional annotation
         self.plot_dir = '.'
         self.gene_reg_dict = None
+        self.min_comm_size = min_comm_size
+        self.func_annotation_full_network = None
+        self.auto_load = auto_load
+        self.build_network()        # Build the network upon initialization
+
 
     def set_p_adj_cutoff(self, p_adj_cutoff):
         self.p_adj_cutoff = p_adj_cutoff
 
-    def build_network(self):
-        string_api_url = "https://string-db.org/api"
-        output_format = "tsv"
-        method = "network"
+    def set_min_comm_size(self, min_comm_size):
+        self.set_min_comm_size = min_comm_size
 
-        if (len(self.gene_list) >= 1000) and (not self.local_data):
-            raise ValueError(
-                "Your identifier list is too big. For lists with min. 1000 identifiers, please download the protein network data (full network, incl. subscores per channel) from stringDB and provide the path via 'local_data'")
+    def load_protein_info(self):
 
-        if self.physical:
-            network_type = "physical"
+        # Construct the URL for the desired organism's protein info
+        organism_code = str(self.organism)  # Convert organism code to string
+        file_name = f"{organism_code}.protein.info.v12.0.txt.gz"
+        data_url = f"https://stringdb-downloads.org/download/protein.info.v12.0/{file_name}"
+
+        # Define the expected path where the file will be saved
+        expected_path = f"./data/{file_name}"
+
+        # Check if the file already exists at the expected path
+        if not os.path.exists(expected_path):
+            # If not, create the directory (if it doesn't exist) and download the file
+            os.makedirs("./data", exist_ok=True)
+            print(f"Downloading {file_name} from {data_url}...")
+
+            # Download with progress bar
+            with tqdm(unit='B', unit_scale=True, miniters=1, desc=file_name) as t:
+                urllib.request.urlretrieve(data_url, filename=expected_path, reporthook=self.download_progress(t))
+
+            print("Download complete.")
         else:
-            network_type = "functional"
+            print(f"{file_name} already exists at {expected_path}.")
+
+        # Load the downloaded file into a pandas DataFrame
+        df = pd.read_csv(expected_path, compression='gzip', header=0, sep='\t')
+        return df
+
+    def download_progress(self, t):
+        def update_to(b=1, bsize=1, tsize=None):
+            if tsize is not None:
+                t.total = tsize
+            t.update(b * bsize - t.n)
+
+        return update_to
+
+    def build_network(self):
+
         # Convert organism to STRING DB identifier
-        if str(self.organism).lower() in(['homo sapiens', 'hs', 'human', '9606']):
+        if str(self.organism).lower() in (['homo sapiens', 'hs', 'human', '9606']):
             self.organism = 9606
-        elif str(self.organism).lower() in(['mus musculus', 'mm', 'mouse', '10090']):
+        elif str(self.organism).lower() in (['mus musculus', 'mm', 'mouse', '10090']):
             self.organism = 10090
         else:
             print(
                 "Organisms should be 'human' or 'mouse' or the string identifier of your organisms.\nIf the code fails, make sure to use the correct identifier or the suggested strings")
 
-        if not self.local_data:
+        string_api_url = "https://string-db.org/api"
+        output_format = "tsv"
+        method = "network"
+        organism_code = str(self.organism)  # Convert organism code to string
+        file_name = f"{organism_code}.protein.links.detailed.v12.0.txt.gz"
+        data_url = f"https://stringdb-downloads.org/download/protein.links.detailed.v12.0/{file_name}"
+
+        if (len(self.gene_list) >= 1000) and (not self.local_data):
+            if self.auto_load:
+                expected_path = f"./data/{file_name}"
+                # Check if data exists at the expected path
+                if os.path.exists(expected_path):
+                    print(f"Loading data from {expected_path}")
+                    self.local_data = expected_path
+                else:
+                    # Create directory if it doesn't exist
+                    os.makedirs("./data", exist_ok=True)
+                    # Download the data with a progress bar
+                    print(f"Downloading data from {data_url} to {expected_path}...")
+
+                    with tqdm(unit='B', unit_scale=True, miniters=1, desc=file_name) as t:
+                        urllib.request.urlretrieve(data_url, filename=expected_path,
+                                                   reporthook=self.download_progress(t))
+
+                    print("Download complete.")
+                    self.local_data = expected_path
+                    print(f"Data is now available at {self.local_data}")
+            else:
+                raise ValueError(
+                    "Your identifier list is too big. For lists with a minimum of 1000 identifiers, the stringDB protein network data "
+                    "(full network, including subscores per channel) needs to be downloaded. Provide its path via 'local_data' or set "
+                    "auto_load=True when instantiating the network to load it automatically.")
+
+        else:
+            self.gene_list = getPreferredNames(self.gene_list, organism=self.organism)
+
+        if not self.local_data: # is automatically True if list is too long for string API
             # Construct the request URL
             request_url = f"{string_api_url}/{output_format}/{method}"
 
@@ -89,17 +159,15 @@ class PPIGraph:
 
         else:
             interactions = pd.read_csv(self.local_data, sep=" ")
-            if self.organism == 9606:
-                url = "https://stringdb-downloads.org/download/protein.info.v12.0/9606.protein.info.v12.0.txt.gz"
-                local_filename = "9606.protein.info.v12.0.txt.gz"
-            elif self.organism == 10090:
-                url = "https://stringdb-downloads.org/download/protein.info.v12.0/10090.protein.info.v12.0.txt.gz"
-                local_filename = "10090.protein.info.v12.0.txt.gz"
-            pref_name_df = download_and_load_dataframe(url, local_filename)
+
+            pref_name_df = self.load_protein_info()
 
             # Create a dictionary from the pref_name_df
             protein_name_dict = pd.Series(pref_name_df.preferred_name.values,
                                           index=pref_name_df['#string_protein_id']).to_dict()
+
+            # map names
+            self.gene_list = self.gene_list.replace(protein_name_dict)
 
             # Map the dictionary to protein1 and protein2 columns to create new columns
             interactions['preferredName_A'] = interactions['protein1'].map(protein_name_dict)
@@ -135,7 +203,7 @@ class PPIGraph:
                             'ascore', 'escore', 'dscore', 'tscore']
             interactions = interactions[column_order]
 
-            # scaling necessary as local file has values (0,1000) insterad of (0,1) as the API file does
+            # scaling necessary as local file has values (0,1000) instead of (0,1) as the API file does
             columns_to_scale = ["nscore", "fscore", "pscore", "ascore", "escore", "dscore"]
 
             # Assuming 'interactions' is your DataFrame
@@ -146,8 +214,8 @@ class PPIGraph:
             print("#######")
             print("You chose no_text-mode. The community creation will not take stringDB textmining into account.")
             print("Arc plots and Circos plots will be created with the scores after textiming exclusion.")
-            print(
-                "However, be aware that the PPI network images can not be created automatically while excluding the textmining scores, therefor it is best here to create the stringDB network images again using stringDB directly.")
+            print("However, be aware that the PPI network images can not be created automatically while excluding the textmining scores,"
+                  " therefore it is best here to create the stringDB network images again using stringDB directly.")
             print("#######")
 
             # create combined score without textmining
@@ -177,8 +245,23 @@ class PPIGraph:
 
         if self.reg_list is not None:
             # Verify gene list and regulation list compatibility
-            if len(self.gene_list) != len(self.reg_list) or len(set(self.gene_list)) != len(self.gene_list):
+            if len(self.gene_list) != len(self.reg_list):
                 raise ValueError("Gene list and regulation list must match in length and contain no duplicates.")
+
+            elif len(set(self.gene_list)) != len(self.gene_list):
+                print('Duplicates found in gene list.')
+                gene_reg_dict = dict()
+                for gene, reg in zip(self.gene_list, self.reg_list):
+                    if gene in gene_reg_dict.keys():
+                        if reg != gene_reg_dict[gene]: # otherwise nothing needs to be done
+                            raise ValueError(gene + " found at least twice, however, with varying regulation values associated: " + " ".join([reg, gene_reg_dict[gene]]))
+                    else:
+                        gene_reg_dict[gene] = reg
+
+                # Deduplicate
+                self.gene_list = gene_reg_dict.keys()
+                self.reg_list = gene_reg_dict.values()
+                print('Gene and Regulation list successfully deduplicated.')
 
             # Create dictionary mapping gene_list to reg_list
             self.gene_reg_dict = dict(zip(self.gene_list, self.reg_list))
@@ -210,22 +293,37 @@ class PPIGraph:
                 self.network.add_edge(a, b, weight=weight)
 
 
-    def community_detection(self, iterations=100, algorithm='leiden'):
+    def community_detection(self, iterations=10, algorithm='leiden'):
         if algorithm == 'leiden':
             self.partition = apply_leiden(to_igraph(self.network), iterations=iterations)
         elif algorithm == 'louvain':
             self.partition = apply_louvain(self.network, iterations=iterations)
 
-    def get_functional_annotation(self, categories = 'default'):
-        if self.partition is None:
-            print('Community detection necessary first. Starting community detection now with default parameters.')
-            self.community_detection()
-        if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
-            self.func_annotation = checkFuncSignificance(self, sig_only=True,
-                                                         categories='default', minCommSize=2)
+    def get_functional_annotation(self, full_network=False, categories = 'default'):
+
+        if len(self.gene_list) > 1000:
+            raise ValueError("Gene list too long. Either the community is too large with more than 1000 genes"
+                             " or you are conducting a full_network analysis on a large network. Functional Enrichment "
+                             " can not be calculated currently for such large lists of genes. For the latter case, "
+                             " consider setting full_network=False to check the individual communities for their "
+                             " functional enrichment.")
+
+        if full_network:
+            if (categories.lower() in ['default', 'pathways', 'all', 'no_pmid', 'no_go']) or (type(categories) == list):
+                self.func_annotation_full_network = checkFuncSignificanceFullNetwork(self, categories='default')
+            else:
+                raise AttributeError("categories argument not set properly. Specify list of databases or "
+                                     "one of the following strings 'all'/'default'/'pathways'")
         else:
-            raise AttributeError("categories argument not set properly. Specify list of databases or "
-                                 "one of the following strings 'all'/'default'/'pathways'")
+            if self.partition is None:
+                print('Community detection necessary first. Starting community detection now with default parameters.')
+                self.community_detection()
+            if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
+                self.func_annotation = checkFuncSignificance(self, sig_only=True,
+                                                             categories='default', min_comm_size=self.min_comm_size)
+            else:
+                raise AttributeError("categories argument not set properly. Specify list of databases or "
+                                     "one of the following strings 'all'/'default'/'pathways'")
 
     def set_plot_dir(self, plot_dir):
         self.plot_dir = plot_dir
@@ -263,37 +361,64 @@ class PPIGraph:
                 self.community_detection()
             plotPPI(self, full_network=False, show=show, background=background)
 
-    def plot_Wordclouds(self, categories='default', show=True, background='transparent'):
-        if self.partition == None:
-            print('Community detection necessary first. Starting community detection now with default parameters.')
-            self.community_detection()
+    def plot_Wordclouds(self, full_network=False, categories='default', show=True, background='transparent'):
+        if full_network:
+            if self.func_annotation_full_network == None:
+                print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
+                self.get_functional_annotation(full_network=True, categories=categories)
 
-        if self.func_annotation == None:
-            print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
-            self.get_functional_annotation()
+            if (categories.lower() in ['default', 'pathways', 'all', 'no_pmid', 'no_go']) or (type(categories) == list):
+                plotWordclouds(self.func_annotation_full_network,
+                               categories=categories,
+                               plot_dir=self.plot_dir, show=show, background=background)
+            else:
+                raise AttributeError("categories argument not set properly. Specify list of databases or "
+                                     "one of the following strings 'all'/'default'/'pathways'")
 
-        if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
-            plotWordclouds(self.func_annotation,
-                           categories=categories,
-                           plot_dir=self.plot_dir, show=show, background=background)
+        else:        # not full network
+            if self.partition == None:
+                print('Community detection necessary first. Starting community detection now with default parameters.')
+                self.community_detection()
+
+            if self.func_annotation == None:
+                print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
+                self.get_functional_annotation(categories=categories)
+
+            if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
+                plotWordclouds(self.func_annotation,
+                               categories=categories,
+                               plot_dir=self.plot_dir, show=show, background=background)
+            else:
+                raise AttributeError("categories argument not set properly. Specify list of databases or "
+                                     "one of the following strings 'all'/'default'/'pathways'")
+
+    def plot_Wordclouds_PPI(self, full_network=False, categories='default', show=True, background='transparent'):
+
+        if full_network:
+            if self.func_annotation_full_network == None:
+                print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
+                self.get_functional_annotation(full_network=True, categories=categories)
+
+            if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
+                plotWordCloudsPPI(self, full_network=full_network, categories=categories, show=show, background=background)
+            else:
+                raise AttributeError("categories argument not set properly. Specify list of databases or "
+                                     "one of the following strings 'all'/'default'/'pathways'")
+
         else:
-            raise AttributeError("categories argument not set properly. Specify list of databases or "
-                                 "one of the following strings 'all'/'default'/'pathways'")
+            if self.partition == None:
+                print('Community detection necessary first. Starting community detection now with default parameters.')
+                self.community_detection()
 
-    def plot_Wordclouds_PPI(self, categories='default', show=True, background='transparent'):
-        if self.partition == None:
-            print('Community detection necessary first. Starting community detection now with default parameters.')
-            self.community_detection()
+            if self.func_annotation == None:
+                print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
+                self.get_functional_annotation()
 
-        if self.func_annotation == None:
-            print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
-            self.get_functional_annotation()
-
-        if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
-            plotWordCloudsPPI(self, categories=categories, show=show, background=background)
-        else:
-            raise AttributeError("categories argument not set properly. Specify list of databases or "
-                                 "one of the following strings 'all'/'default'/'pathways'")
+            if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
+                plotWordCloudsPPI(self, categories=categories, show=show, background=background)
+            else:
+                raise AttributeError("categories argument not set properly. Specify list of databases or "
+                                     "one of the following strings 'all'/'default'/'pathways'")
 
     def plot_KEGG(self, pathway='all', community='all', show=True, transparency=.5, background='transparent'):
 
