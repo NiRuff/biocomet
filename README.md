@@ -1,6 +1,6 @@
 # BioComet
 
-<img align="right" width="500" height="500" src="https://github.com/NiRuff/GithubMedia/blob/main/BioCometLogo.png?raw=true">
+<img align="right" width="450" height="450" src="https://github.com/NiRuff/GithubMedia/blob/main/BioCometLogo_cropped.png?raw=true">
 
 ## Community Explorer <br/> for Multi-omics daTa
 
