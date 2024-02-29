@@ -1,8 +1,9 @@
 # BioComet
 
-<img align="right" width="450" height="450" src="https://github.com/NiRuff/GithubMedia/blob/main/BioCometLogo_cropped.png?raw=true">
 
 ## Community Explorer <br/> for Multi-omics daTa
+
+<img align="right" width="450" height="450" src="https://github.com/NiRuff/GithubMedia/blob/main/BioCometLogo_cropped.png?raw=true">
 
 BioComet is an advanced bioinformatics tool designed to facilitate the analysis of protein-protein interactions (PPIs) and the exploration of biological networks. Built as an object-oriented Python module, BioComet leverages the STRING database to provide users with powerful capabilities for community detection, functional annotation, and network visualization.
 
