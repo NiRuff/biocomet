@@ -1,7 +1,7 @@
 # BioComet
 
 
-## Community Explorer <br/> for Multi-omics daTa
+## Community Explorer for Multi-omics daTa
 
 <img align="right" width="450" height="450" src="https://github.com/NiRuff/GithubMedia/blob/main/BioCometLogo_cropped.png?raw=true">
 
