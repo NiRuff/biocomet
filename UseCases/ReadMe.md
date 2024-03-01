@@ -4,19 +4,21 @@ This directory contains a series of Jupyter notebook files that demonstrate the 
 
 ## Overview of Use Cases
 
-### 🧬 UseCase1 - Common NDD Genes.ipynb
+### 🧬 UseCase1-Common_NDD_Genes.ipynb
+
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/NiRuff/COMET/HEAD?labpath=https%3A%2F%2Fgithub.com%2FNiRuff%2FCOMET%2Fblob%2Fmaster_kegg%2FUseCases%2FUseCase1-Common_NDD_Genes.ipynb)
 
 **Human, gene lists only!**
 
 This notebook explores the analysis of gene lists identified at the intersection of various neurodegenerative diseases (NDDs). It highlights how community detection with BioComet can enrich our understanding of biologically relevant processes in neurodegeneration, providing insights into common genetic underpinnings across different conditions.
 
-### 🕰️ UseCase2 - Circadian Rhythm Pathways in NDDs.ipynb
+### 🕰️ UseCase2-Circadian_Rhythm_Pathways_in_NDDs.ipynb
 
 **Human, gene lists and corresponding regulation!**
 
 Focusing on specific pathways, particularly the circadian rhythm, within four NDDs, this notebook demonstrates the advanced visualization features of BioComet. It delves into the analysis and interpretation of KEGG pathway analyses, showcasing the tool's capability to elucidate regulatory mechanisms and their disruptions in disease contexts.
 
-### 🐭 UseCase3 - Mouse Transcriptomic Data Analysis.ipynb
+### 🐭 UseCase3-Mouse_Transcriptomic_Data_Analysis.ipynb
 
 **Mouse, gene lists and corresponding regulation!**
 
