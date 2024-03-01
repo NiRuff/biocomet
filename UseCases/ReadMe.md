@@ -6,7 +6,7 @@ This directory contains a series of Jupyter notebook files that demonstrate the 
 
 ### 🧬 UseCase1-Common_NDD_Genes.ipynb
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/NiRuff/COMET/HEAD?labpath=https%3A%2F%2Fgithub.com%2FNiRuff%2FCOMET%2Fblob%2Fmaster_kegg%2FUseCases%2FUseCase1-Common_NDD_Genes.ipynb)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/NiRuff/COMET/227fc982ea5fc2249df2deccdf4dd8e8dcbd5a2e?urlpath=lab%2Ftree%2FUseCases%2FUseCase1-Common_NDD_Genes.ipynb)
 
 **Human, gene lists only!**
 
