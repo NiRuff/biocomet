@@ -38,6 +38,7 @@ def plot_nv(G, sigPartition, plot_dir='.', legend=True, kind='ArcPlots', show=Tr
     community_sizes = Counter(sigPartition.values())
 
     if len(set(sigPartition.keys())) > 12:
+        community_sizes[-1] = 0 # define -1 as smallest to remove those first
         # Sort communities by size and keep only the 12 largest
         largest_communities = sorted(community_sizes, key=community_sizes.get, reverse=True)[:12]
         removed_communities = set(sigPartition.values()) - set(largest_communities)
@@ -143,8 +144,14 @@ def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True, ba
         try:
             wc.generate_from_frequencies(weights)
         except ValueError:
-            # If no words are available, generate a word cloud with placeholder text
-            wc.generate_from_text('No significant functional enrichment found for the specified databases.')
+            # Generate a word cloud with a placeholder message, ensuring uniform color and size
+            placeholder_message = 'No significant functional enrichment found for the specified databases'
+            # Create a dictionary with the placeholder message as the key and a frequency of 1
+            placeholder_freq = {placeholder_message: 1}
+            # Generate the word cloud from the single "word" (our message)
+            wc.generate_from_frequencies(placeholder_freq)
+            # Optionally, set a uniform color for the message
+            wc.recolor(color_func=lambda *args, **kwargs: "black")  # Use any color you prefer
 
         # Recolor the words
         def color_func(word, *args, **kwargs):
@@ -353,8 +360,14 @@ def plotWordCloudsPPI(PPIGraph, categories='default', full_network = False, show
             wc.recolor(color_func=color_func)
 
         except ValueError:
-            # If no words are available, generate a word cloud with placeholder text
-            wc.generate_from_text('No significant functional enrichment found for the specified databases.')
+            # Generate a word cloud with a placeholder message, ensuring uniform color and size
+            placeholder_message = 'No significant functional enrichment found for the specified databases'
+            # Create a dictionary with the placeholder message as the key and a frequency of 1
+            placeholder_freq = {placeholder_message: 1}
+            # Generate the word cloud from the single "word" (our message)
+            wc.generate_from_frequencies(placeholder_freq)
+            # Optionally, set a uniform color for the message
+            wc.recolor(color_func=lambda *args, **kwargs: "black")  # Use any color you prefer
 
         # PPI network part
         commGeneSet = allCommGeneSets[commNum]

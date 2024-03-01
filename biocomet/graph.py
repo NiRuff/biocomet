@@ -293,11 +293,11 @@ class PPIGraph:
                 self.network.add_edge(a, b, weight=weight)
 
 
-    def community_detection(self, iterations=10, algorithm='leiden'):
+    def community_detection(self, iterations=10, algorithm='leiden', seed=None):
         if algorithm == 'leiden':
-            self.partition = apply_leiden(to_igraph(self.network), iterations=iterations)
+            self.partition = apply_leiden(to_igraph(self.network), iterations=iterations, seed=seed)
         elif algorithm == 'louvain':
-            self.partition = apply_louvain(self.network, iterations=iterations)
+            self.partition = apply_louvain(self.network, iterations=iterations, seed=seed)
 
     def get_functional_annotation(self, full_network=False, categories = 'default'):
 
@@ -310,7 +310,7 @@ class PPIGraph:
 
         if full_network:
             if (categories.lower() in ['default', 'pathways', 'all', 'no_pmid', 'no_go']) or (type(categories) == list):
-                self.func_annotation_full_network = checkFuncSignificanceFullNetwork(self, categories='default')
+                self.func_annotation_full_network = checkFuncSignificanceFullNetwork(self, categories=categories)
             else:
                 raise AttributeError("categories argument not set properly. Specify list of databases or "
                                      "one of the following strings 'all'/'default'/'pathways'")
@@ -320,7 +320,7 @@ class PPIGraph:
                 self.community_detection()
             if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
                 self.func_annotation = checkFuncSignificance(self, sig_only=True,
-                                                             categories='default', min_comm_size=self.min_comm_size)
+                                                             categories=categories, min_comm_size=self.min_comm_size)
             else:
                 raise AttributeError("categories argument not set properly. Specify list of databases or "
                                      "one of the following strings 'all'/'default'/'pathways'")
