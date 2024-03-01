@@ -1,13 +1,14 @@
-# BioComet
+# ☄️ BioComet ☄️
 
-
-## Community Explorer for Multi-omics daTa
+## 🌐 Community Explorer for Multi-omics Data
 
 <img align="right" width="450" height="450" src="https://github.com/NiRuff/GithubMedia/blob/main/BioCometLogo_cropped.png?raw=true">
 
-BioComet is an advanced bioinformatics tool designed to facilitate the analysis of protein-protein interactions (PPIs) and the exploration of biological networks. Built as an object-oriented Python module, BioComet leverages the STRING database to provide users with powerful capabilities for community detection, functional annotation, and network visualization.
+**BioComet** is an advanced bioinformatics tool designed to facilitate the analysis of protein-protein interactions (PPIs)
+and the exploration of biological networks. Built as an object-oriented Python module, BioComet leverages the **STRING** database
+to provide users with powerful capabilities for community detection, functional annotation, and network visualization.
 
-### Principle
+### 📚 Principle
 Large gene lists or gene lists emerging from the analysis of complex conditions can functionally point to a variety of underlying biological pathways. 
 When analyzing all of these data as one input in a functional enrichment analysis, this can lead to a facilitation of the unspecific top-level terms obscuring more detailed underlying findings.
 E.g., this set of 139 genes emerging as commonly appearing in several neurodegenerative diseases 
@@ -17,24 +18,24 @@ If assuming that the transcriptomic commonalities between these neurodegenerativ
 
 ![BioCometOverview](https://user-images.githubusercontent.com/50486014/238303370-5f6a0280-ef52-4dba-8f1a-7762256f83c6.png)
 
-## Features
+## 🪧 Features
+- **🔍 Community Detection**: Utilize the Louvain and Leiden algorithms for robust community detection in PPI networks.
+- **📖 Functional Annotation**: Perform comprehensive functional annotation using databases like KEGG, Reactome, MetaCyc, the EBI Complex Portal, and Gene Ontology Complexes.
+- **🎨 Network Visualization**: Generate visual representations of PPI networks, including specific communities, with support for various visualization methods.
+- **🌐 Integrated Hub Node Detection**: Seamlessly identify hub nodes within communities or across the entire PPI graph.
 
-- **Community Detection**: Utilize the Louvain and Leiden algorithms for robust community detection in PPI networks.
-- **Functional Annotation**: Perform comprehensive functional annotation using databases like KEGG, Reactome, MetaCyc, the EBI Complex Portal, and Gene Ontology Complexes.
-- **Network Visualization**: Generate visual representations of PPI networks, including specific communities, with support for various visualization methods.
-- **Integrated Hub Node Detection**: Seamlessly identify hub nodes within communities or across the entire PPI graph.
+## 🛠 Installation
+**BioComet** is distributed via PyPi, so it can easily be installed with `pip`. 
+However, in case problems might arise, we also shortly showcase how to install it in a fresh conda environment.
 
-## Installation
-
-biocomet is distributed via PyPi so it can easily be installed with pip. However, in case problems might arise, we also shortly showcase how to install it in a fresh conda environment.
-
-### Using pip
-
-BioComet can be easily installed via pip:
+### 📦 Using pip
+**BioComet** can be easily installed via pip:
 
 ```bash
 pip install biocomet
 ```
+
+### 🐍 Using conda
 
 If any issues arise, trying creating a new conda environment with Pyton >=3.6 and installing biocomet in that fresh environment.
 This could e.g. look like this:
@@ -45,9 +46,9 @@ conda activate biocomet_env
 pip install biocomet
 ```
 
-## Usage
+## 🚀 Usage
 
-After installation, you can start using BioComet by importing it into your Python projects:
+After installation, you can start using **BioComet** by importing it into your Python projects:
 
 ```python
 import pandas as pd
@@ -64,13 +65,14 @@ ppi_graph = bc.PPIGraph(gene_list=my_DEG_results['GeneID'], reg_list=my_DEG_resu
 ```
 For more details see the example section in which we offer three different use-cases to browse through.
 
-## Contributing
+## 🤝 Contributing
 
-We welcome contributions to BioComet! If you have suggestions, bug reports, or contributions, please submit them as issues or pull requests on GitHub.
+We welcome contributions to BioComet! If you have suggestions, bug reports, or contributions, 
+please submit them as issues or pull requests on **GitHub**.
 
-## Citing BioComet
+## 📝 Citing BioComet
 
-If you use BioComet in your research, please cite our paper: 
+If you use **BioComet** in your research, please cite our paper: 
 
 tbd
 
