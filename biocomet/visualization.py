@@ -416,7 +416,7 @@ def plotWordCloudsPPI(PPIGraph, categories='default', full_network = False, show
         plt.close()
 
 
-def visualize_KEGG(pathway_id, gene_reg_dict, organism, plot_dir=".", transparency=.5, community=None, show=True, background='transparent'):
+def visualize_KEGG(pathway_id, gene_reg_dict, organism, plot_dir=".", transparency=.5, community=None, show=True, background='transparent', suffix=''):
 
     if organism == 'human':
         organism = 9606
@@ -424,7 +424,7 @@ def visualize_KEGG(pathway_id, gene_reg_dict, organism, plot_dir=".", transparen
         organism = 10090
 
     # Path to the JSON file
-    json_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'org_gene_to_kegg.json')
+    json_path = os.path.join(os.path.dirname(__file__), '.', 'data', 'org_gene_to_kegg.json')
     with open(json_path, 'r') as file:
         gene_kegg_dict = json.load(file)
 
@@ -466,10 +466,10 @@ def visualize_KEGG(pathway_id, gene_reg_dict, organism, plot_dir=".", transparen
         kegg_reg_dict = {k: [uniprot_reg_dict[uni] for uni in v if uni in uniprot_reg_dict] for k, v in
                          kegg_uniprots_dict.items()}
 
-    annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=plot_dir, transparency=transparency, community=community, show=show, background=background)
+    annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=plot_dir, transparency=transparency, community=community, show=show, background=background, suffix=suffix)
 
 
-def annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=".", transparency=.5, community=None, show=True, background='transparent'):
+def annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=".", transparency=.5, community=None, show=True, background='transparent', suffix=''):
 
     # ensure dir existence
     pathlib.Path(plot_dir + "/KEGG/").mkdir(parents=True, exist_ok=True)
@@ -565,9 +565,9 @@ def annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=".", transpare
     change_background_color(plt.gcf(), plt.gca(), background)
 
     if community is not None:  # if specified
-        file_name = plot_dir + '/KEGG/' + str(community) + '/' + pathway_id + '.png'
+        file_name = plot_dir + '/KEGG/' + str(community) + '/' + pathway_id + suffix + '.png'
     else:  # if unspecified
-        file_name = plot_dir + "/KEGG/" + pathway_id + '.png'
+        file_name = plot_dir + "/KEGG/" + pathway_id + suffix + '.png'
 
     plt.savefig(file_name, dpi=300, bbox_inches='tight')
     print("Saving KEGG pathways to %s" %file_name)
