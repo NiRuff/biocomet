@@ -479,7 +479,7 @@ class PPIGraph:
                         visualize_KEGG(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
                                        plot_dir=self.plot_dir, transparency=transparency, community=comm, show=show, background=background)
 
-    def plot_reg_networks(self, full_network=False, community='all', centrality_measure='degree', show=True, background='transparent'):
+    def plot_reg_networks(self, full_network=False, community='all', centrality_measure='w_degree', show=True, background='transparent'):
         if full_network:
             plotRegNetworks(self.network, self.partition, self.plot_dir, full_network=True, centrality_measure=centrality_measure, community=community, show=show,
                             background=background)

@@ -687,7 +687,7 @@ def scale_parameters_based_on_network_size(G, base_node_size=1500, base_font_siz
 
     return font_size, fig_size
 
-def plotRegNetworks(G, partition, plot_dir=".", full_network=False, centrality_measure = 'degree', community='all', show=True, background='transparent'):
+def plotRegNetworks(G, partition, plot_dir=".", full_network=False, centrality_measure = 'w_degree', community='all', show=True, background='transparent'):
 
     # ensure dir existence
     pathlib.Path(plot_dir + "/regNetworks/").mkdir(parents=True, exist_ok=True)
@@ -728,14 +728,36 @@ def plotRegNetworks(G, partition, plot_dir=".", full_network=False, centrality_m
         edge_alphas = np.interp(edge_weights_raw, (edge_weights_raw.min(), edge_weights_raw.max()), (0.1, 1))
 
         if centrality_measure:
-            if centrality_measure == 'degree':
+            if centrality_measure == 'w_degree':
                 #centrality_values = nx.degree_centrality(G) # Calculate degree centrality
                 centrality_values = {node: sum(data['weight'] for _, _, data in G.edges(node, data=True)) for node in
                                     G.nodes()} # DIY weighted degree centrality
+            elif centrality_measure == 'degree':
+                centrality_values = nx.degree_centrality(G) # Calculate degree centrality
+            elif centrality_measure == 'w_betweenness':
+                centrality_values = nx.betweenness_centrality(G, weight='weight') # Calculate weighted betweenness centrality
             elif centrality_measure == 'betweenness':
-                centrality_values = nx.betweenness_centrality(G, weight='weight') # Calculate degree centrality
+                centrality_values = nx.betweenness_centrality(G) # Calculate betweenness centrality
+            elif centrality_measure == 'closeness':
+                centrality_values = nx.closeness_centrality(G) # Calculate closeness centrality
+            elif centrality_measure == 'w_closeness':
+                # Finding min and max weights
+                weights = [d['weight'] for u, v, d in G.edges(data=True)]
+                min_weight = min(weights)
+                max_weight = max(weights)
+                # Scaling weights between 0 and 1, inversely
+                for u, v, d in G.edges(data=True):
+                    # Scale inversely: higher weight gets lower distance
+                    d['distance'] = 1 - (d['weight'] - min_weight) / (max_weight - min_weight)
+                centrality_values = nx.closeness_centrality(G, distance='distance') # Calculate weighted closeness centrality
+            elif centrality_measure == 'w_eigenvector':
+                centrality_values = nx.eigenvector_centrality(G, weight='weight')  # Calculate weighted eigenvector centrality
             elif centrality_measure == 'eigenvector':
-                centrality_values = nx.eigenvector_centrality(G, weight='weight')  # Calculate degree centrality
+                centrality_values = nx.eigenvector_centrality(G)  # Calculate eigenvector centrality
+            elif centrality_measure == 'w_katz_centrality':
+                centrality_values = nx.katz_centrality(G,weight='weight')  # Calculate weighted katz centrality
+            elif centrality_measure == 'katz_centrality':
+                centrality_values = nx.katz_centrality(G)  # Calculate katz centrality
 
             # Normalize centrality values for visualization
             max_centrality = max(centrality_values.values())
@@ -818,8 +840,8 @@ def plotRegNetworks(G, partition, plot_dir=".", full_network=False, centrality_m
                         transform=ax_fig.transAxes)
 
             # Centrality measure (smaller font size)
-            measure_text = "\nWeighted " if centrality_measure == 'degree' else "\n"
-            measure_text += f"{centrality_measure.capitalize()} Centrality\n"
+            measure_text = "\nWeighted " if centrality_measure.startswith('w_') else "\n"
+            measure_text += f"{centrality_measure.replace('w_', '').capitalize()} Centrality\n"
             ax_fig.text(0.5, -0.2, measure_text, ha='center', va='center',
                         fontsize=font_size_legend-2, transform=ax_fig.transAxes)
 
@@ -900,15 +922,41 @@ def plotRegNetworks(G, partition, plot_dir=".", full_network=False, centrality_m
             edge_alphas = np.interp(edge_weights_raw, (edge_weights_raw.min(), edge_weights_raw.max()), (0.1, 1))
 
             if centrality_measure:
-                if centrality_measure == 'degree':
+                if centrality_measure == 'w_degree':
                     # centrality_values = nx.degree_centrality(G) # Calculate degree centrality
                     centrality_values = {node: sum(data['weight'] for _, _, data in G_sub.edges(node, data=True)) for node
                                          in
                                          G_sub.nodes()}  # DIY weighted degree centrality
+                elif centrality_measure == 'degree':
+                    centrality_values = nx.degree_centrality(G_sub)  # Calculate degree centrality
+                elif centrality_measure == 'w_betweenness':
+                    centrality_values = nx.betweenness_centrality(G_sub,
+                                                                  weight='weight')  # Calculate weighted betweenness centrality
                 elif centrality_measure == 'betweenness':
-                    centrality_values = nx.betweenness_centrality(G_sub, weight='weight')  # Calculate degree centrality
+                    centrality_values = nx.betweenness_centrality(G_sub)  # Calculate betweenness centrality
+                elif centrality_measure == 'closeness':
+                    centrality_values = nx.closeness_centrality(G_sub)  # Calculate closeness centrality
+                elif centrality_measure == 'w_closeness':
+                    # Finding min and max weights
+                    weights = [d['weight'] for u, v, d in G_sub.edges(data=True)]
+                    min_weight = min(weights)
+                    max_weight = max(weights)
+
+                    # Scaling weights between 0 and 1, inversely
+                    for u, v, d in G_sub.edges(data=True):
+                        # Scale inversely: higher weight gets lower distance
+                        d['distance'] = 1 - (d['weight'] - min_weight) / (max_weight - min_weight)
+                    centrality_values = nx.closeness_centrality(G_sub,
+                                                                distance='distance')  # Calculate weighted closeness centrality
+                elif centrality_measure == 'w_eigenvector':
+                    centrality_values = nx.eigenvector_centrality(G_sub,
+                                                                  weight='weight')  # Calculate weighted eigenvector centrality
                 elif centrality_measure == 'eigenvector':
-                    centrality_values = nx.eigenvector_centrality(G_sub, weight='weight')  # Calculate degree centrality
+                    centrality_values = nx.eigenvector_centrality(G_sub)  # Calculate eigenvector centrality
+                elif centrality_measure == 'w_katz_centrality':
+                    centrality_values = nx.katz_centrality(G_sub, weight='weight')  # Calculate weighted katz centrality
+                elif centrality_measure == 'katz_centrality':
+                    centrality_values = nx.katz_centrality(G_sub)  # Calculate katz centrality
 
                 # Normalize centrality values for visualization
                 max_centrality = max(centrality_values.values())
@@ -990,8 +1038,8 @@ def plotRegNetworks(G, partition, plot_dir=".", full_network=False, centrality_m
                             transform=ax_fig.transAxes)
 
                 # Centrality measure (smaller font size)
-                measure_text = "\nWeighted " if centrality_measure == 'degree' else "\n"
-                measure_text += f"{centrality_measure.capitalize()} Centrality\n"
+                measure_text = "\nWeighted " if centrality_measure.startswith('w_') else "\n"
+                measure_text += f"{centrality_measure.replace('w_', '').capitalize()} Centrality\n"
                 ax_fig.text(0.5, -0.2, measure_text, ha='center', va='center',
                             fontsize=font_size_legend - 2, transform=ax_fig.transAxes)
 
