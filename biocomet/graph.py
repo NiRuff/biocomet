@@ -383,7 +383,7 @@ class PPIGraph:
             print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
             self.get_functional_annotation()
 
-        plot_nv(self.network, self.partition, self.plot_dir, legend=legend, kind='ArcPlots', show=show, background=background)
+        plot_nv(self.network, self.partition, self.min_comm_size, self.plot_dir, legend=legend, kind='ArcPlots', show=show, background=background)
 
     def plot_circos(self, show=True, background='transparent', legend=True):
 
@@ -395,7 +395,7 @@ class PPIGraph:
             print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
             self.get_functional_annotation()
 
-        plot_nv(self.network, self.partition, self.plot_dir, legend=legend, kind='CircosPlots', show=show, background=background)
+        plot_nv(self.network, self.partition, self.min_comm_size, self.plot_dir, legend=legend, kind='CircosPlots', show=show, background=background)
 
     def plot_PPI(self, full_network=False, show=True, background='transparent'):
         if full_network:

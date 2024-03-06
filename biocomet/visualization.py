@@ -31,27 +31,34 @@ import json
 import os
 
 
-def plot_nv(G, sigPartition, plot_dir='.', legend=True, kind='ArcPlots', show=True, background='transparent'):
+def plot_nv(G, sigPartition, min_comm_size=3, plot_dir='.', legend=True, kind='ArcPlots', show=True, background='transparent'):
 
     pathlib.Path(plot_dir + "/" + kind + "/").mkdir(parents=True, exist_ok=True)
 
     community_sizes = Counter(sigPartition.values())
 
-    if len(set(sigPartition.keys())) > 12:
-        community_sizes[-1] = 0 # define -1 as smallest to remove those first
+    # Identify small communities
+    small_communities = [comm for comm, size in community_sizes.items() if size < min_comm_size]
+
+    # Remove genes belonging to small communities from sigPartition
+    sigPartition = {gene: comm for gene, comm in sigPartition.items() if comm not in small_communities and comm != -1}
+
+    # Identify nodes to remove: those in small communities or in the -1 community
+    nodes_to_remove = [node for node, comm in G.nodes(data='community') if comm in small_communities or comm == -1]
+    G_trunc = G.copy()
+    G_trunc.remove_nodes_from(nodes_to_remove)
+
+    if len(set(sigPartition.values())) > 12:
         # Sort communities by size and keep only the 12 largest
         largest_communities = sorted(community_sizes, key=community_sizes.get, reverse=True)[:12]
         removed_communities = set(sigPartition.values()) - set(largest_communities)
 
         # Truncate G to include only nodes from the 12 largest communities
         nodes_to_remove = [node for node, comm in sigPartition.items() if comm not in largest_communities]
-        G_trunc = G.copy()
         G_trunc.remove_nodes_from(nodes_to_remove)
 
-        print(
-            f"G has been truncated to include only the 12 largest communities. Communities removed: {removed_communities}")
-    else:
-        G_trunc = G.copy()
+        print(f"G has been truncated to include only the 12 largest communities. Communities removed: {removed_communities}")
+
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
