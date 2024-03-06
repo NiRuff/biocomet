@@ -6,7 +6,7 @@ This directory contains a series of Jupyter notebook files that demonstrate the 
 
 ### 🧬 UseCase1-Common_NDD_Genes.ipynb
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/NiRuff/COMET/227fc982ea5fc2249df2deccdf4dd8e8dcbd5a2e?urlpath=lab%2Ftree%2FUseCases%2FUseCase1-Common_NDD_Genes.ipynb)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/NiRuff/biocomet/master_kegg/?labpath=UseCases%2FUseCase1-Common_NDD_Genes.ipynb)
 
 **Human, gene lists only!**
 
@@ -14,13 +14,14 @@ This notebook explores the analysis of gene lists identified at the intersection
 
 ### 🕰️ UseCase2-Circadian_Rhythm_Pathways_in_NDDs.ipynb
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/NiRuff/COMET/master_kegg/?labpath=UseCases%2FUseCase2-Circadian_Rhythm_Pathways_in_NDDs.ipynb)
-
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/NiRuff/biocomet/master_kegg/?labpath=UseCases%2FUseCase2-Circadian_Rhythm_Pathways_in_NDDs.ipynb)
 **Human, gene lists and corresponding regulation!**
 
 Focusing on specific pathways, particularly the circadian rhythm, within four NDDs, this notebook demonstrates the advanced visualization features of BioComet. It delves into the analysis and interpretation of KEGG pathway analyses, showcasing the tool's capability to elucidate regulatory mechanisms and their disruptions in disease contexts.
 
 ### 🐭 UseCase3-Mouse_Transcriptomic_Data_Analysis.ipynb
+
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/NiRuff/biocomet/master_kegg/?labpath=UseCases%2FUseCase3-Mouse_Transcriptomic_Data_Analysis.ipynb)
 
 **Mouse, gene lists and corresponding regulation!**
 
