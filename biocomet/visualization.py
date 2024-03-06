@@ -258,6 +258,10 @@ def plotPPI(PPIGraph, full_network=False, show=True, background='transparent'):
 
         for commNum, commGeneSet in allCommGeneSets.items():
 
+            # skip if community is too small
+            if len(commGeneSet) < PPIGraph.min_comm_size:
+                continue
+
             params = {
                 "identifiers": "%0d".join(commGeneSet),  # your protein
                 "species": PPIGraph.organism,  # species NCBI identifier
@@ -340,6 +344,13 @@ def plotWordCloudsPPI(PPIGraph, categories='default', full_network = False, show
         funcAnnots = PPIGraph.func_annotation.copy()
 
     for commNum, df in funcAnnots.items():
+        # PPI network part
+        commGeneSet = allCommGeneSets[commNum]
+
+        # skip if community is too small
+        if len(commGeneSet) < PPIGraph.min_comm_size:
+            continue
+
         df = df[df['category'].isin(categories)]
 
         # Create a word cloud
@@ -368,10 +379,6 @@ def plotWordCloudsPPI(PPIGraph, categories='default', full_network = False, show
             wc.generate_from_frequencies(placeholder_freq)
             # Optionally, set a uniform color for the message
             wc.recolor(color_func=lambda *args, **kwargs: "black")  # Use any color you prefer
-
-        # PPI network part
-        commGeneSet = allCommGeneSets[commNum]
-        # commNum = pd.Series(sigPartition.values()).sort_values().unique()[i]
 
         params = {
             "identifiers": "%0d".join(commGeneSet),  # your protein
@@ -687,7 +694,7 @@ def scale_parameters_based_on_network_size(G, base_node_size=1500, base_font_siz
 
     return font_size, fig_size
 
-def plotRegNetworks(G, partition, plot_dir=".", full_network=False, centrality_measure = 'w_degree', community='all', show=True, background='transparent'):
+def plotRegNetworks(G, partition, centrality, plot_dir=".", full_network=False, centrality_measure = 'w_degree', community='all', show=True, background='transparent', min_comm_size=3):
 
     # ensure dir existence
     pathlib.Path(plot_dir + "/regNetworks/").mkdir(parents=True, exist_ok=True)
@@ -728,36 +735,13 @@ def plotRegNetworks(G, partition, plot_dir=".", full_network=False, centrality_m
         edge_alphas = np.interp(edge_weights_raw, (edge_weights_raw.min(), edge_weights_raw.max()), (0.1, 1))
 
         if centrality_measure:
-            if centrality_measure == 'w_degree':
-                #centrality_values = nx.degree_centrality(G) # Calculate degree centrality
-                centrality_values = {node: sum(data['weight'] for _, _, data in G.edges(node, data=True)) for node in
-                                    G.nodes()} # DIY weighted degree centrality
-            elif centrality_measure == 'degree':
-                centrality_values = nx.degree_centrality(G) # Calculate degree centrality
-            elif centrality_measure == 'w_betweenness':
-                centrality_values = nx.betweenness_centrality(G, weight='weight') # Calculate weighted betweenness centrality
-            elif centrality_measure == 'betweenness':
-                centrality_values = nx.betweenness_centrality(G) # Calculate betweenness centrality
-            elif centrality_measure == 'closeness':
-                centrality_values = nx.closeness_centrality(G) # Calculate closeness centrality
-            elif centrality_measure == 'w_closeness':
-                # Finding min and max weights
-                weights = [d['weight'] for u, v, d in G.edges(data=True)]
-                min_weight = min(weights)
-                max_weight = max(weights)
-                # Scaling weights between 0 and 1, inversely
-                for u, v, d in G.edges(data=True):
-                    # Scale inversely: higher weight gets lower distance
-                    d['distance'] = 1 - (d['weight'] - min_weight) / (max_weight - min_weight)
-                centrality_values = nx.closeness_centrality(G, distance='distance') # Calculate weighted closeness centrality
-            elif centrality_measure == 'w_eigenvector':
-                centrality_values = nx.eigenvector_centrality(G, weight='weight')  # Calculate weighted eigenvector centrality
-            elif centrality_measure == 'eigenvector':
-                centrality_values = nx.eigenvector_centrality(G)  # Calculate eigenvector centrality
-            elif centrality_measure == 'w_katz_centrality':
-                centrality_values = nx.katz_centrality(G,weight='weight')  # Calculate weighted katz centrality
-            elif centrality_measure == 'katz_centrality':
-                centrality_values = nx.katz_centrality(G)  # Calculate katz centrality
+            # Check if centrality_measure is valid
+            if not any(centrality_measure in measures for measures in centrality['Full Network'].values()):
+                raise AttributeError(
+                    f"Invalid centrality measure. Choose from {', '.join({key for measures in centrality['Full Network'].values() for key in measures})}")
+
+            centrality_values = {gene: measures[centrality_measure] for gene, measures in
+                                 centrality['Full Network'].items() if centrality_measure in measures}
 
             # Normalize centrality values for visualization
             max_centrality = max(centrality_values.values())
@@ -901,6 +885,8 @@ def plotRegNetworks(G, partition, plot_dir=".", full_network=False, centrality_m
 
             # Filter nodes by community using the partition dictionary
             nodes_in_community = [node for node, c in partition.items() if c == comm]
+            if len(nodes_in_community) < min_comm_size:
+                continue
             G_sub = G.subgraph(nodes_in_community)
 
             # Calculate the layout of the graph
@@ -922,41 +908,13 @@ def plotRegNetworks(G, partition, plot_dir=".", full_network=False, centrality_m
             edge_alphas = np.interp(edge_weights_raw, (edge_weights_raw.min(), edge_weights_raw.max()), (0.1, 1))
 
             if centrality_measure:
-                if centrality_measure == 'w_degree':
-                    # centrality_values = nx.degree_centrality(G) # Calculate degree centrality
-                    centrality_values = {node: sum(data['weight'] for _, _, data in G_sub.edges(node, data=True)) for node
-                                         in
-                                         G_sub.nodes()}  # DIY weighted degree centrality
-                elif centrality_measure == 'degree':
-                    centrality_values = nx.degree_centrality(G_sub)  # Calculate degree centrality
-                elif centrality_measure == 'w_betweenness':
-                    centrality_values = nx.betweenness_centrality(G_sub,
-                                                                  weight='weight')  # Calculate weighted betweenness centrality
-                elif centrality_measure == 'betweenness':
-                    centrality_values = nx.betweenness_centrality(G_sub)  # Calculate betweenness centrality
-                elif centrality_measure == 'closeness':
-                    centrality_values = nx.closeness_centrality(G_sub)  # Calculate closeness centrality
-                elif centrality_measure == 'w_closeness':
-                    # Finding min and max weights
-                    weights = [d['weight'] for u, v, d in G_sub.edges(data=True)]
-                    min_weight = min(weights)
-                    max_weight = max(weights)
+                # Check if centrality_measure is valid
+                if not any(centrality_measure in measures for measures in centrality[comm].values()):
+                    raise AttributeError(
+                        f"Invalid centrality measure. Choose from {', '.join({key for measures in centrality[comm].values() for key in measures})}")
 
-                    # Scaling weights between 0 and 1, inversely
-                    for u, v, d in G_sub.edges(data=True):
-                        # Scale inversely: higher weight gets lower distance
-                        d['distance'] = 1 - (d['weight'] - min_weight) / (max_weight - min_weight)
-                    centrality_values = nx.closeness_centrality(G_sub,
-                                                                distance='distance')  # Calculate weighted closeness centrality
-                elif centrality_measure == 'w_eigenvector':
-                    centrality_values = nx.eigenvector_centrality(G_sub,
-                                                                  weight='weight')  # Calculate weighted eigenvector centrality
-                elif centrality_measure == 'eigenvector':
-                    centrality_values = nx.eigenvector_centrality(G_sub)  # Calculate eigenvector centrality
-                elif centrality_measure == 'w_katz_centrality':
-                    centrality_values = nx.katz_centrality(G_sub, weight='weight')  # Calculate weighted katz centrality
-                elif centrality_measure == 'katz_centrality':
-                    centrality_values = nx.katz_centrality(G_sub)  # Calculate katz centrality
+                centrality_values = {gene: measures[centrality_measure] for gene, measures in
+                                     centrality[comm].items() if centrality_measure in measures}
 
                 # Normalize centrality values for visualization
                 max_centrality = max(centrality_values.values())

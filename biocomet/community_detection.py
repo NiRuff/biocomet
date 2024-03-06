@@ -9,17 +9,6 @@ def apply_louvain(G, iterations=10, seed=None):
     partition_list = []
     modularity_list = []
 
-    # Get the weights of the igraph object
-    weights = [data['weight'] for _, _, data in G.edges(data=True)]
-
-    # # Print the first few weights
-    # print("First few edge weights:", weights[:5])
-    #
-    # # Calculate and print summary statistics
-    # print("Mean weight:", np.mean(weights))
-    # print("Minimum weight:", np.min(weights))
-    # print("Maximum weight:", np.max(weights))
-
     if seed:
         partition = community_louvain.best_partition(G, weight='weight', seed=seed)
         modularity = community_louvain.modularity(partition, G, weight='weight')
@@ -52,17 +41,6 @@ def apply_leiden(ig_graph, iterations=10, seed=None):
     # Apply Leiden algorithm to the graph
     partition_list = []
     modularity_list = []
-
-    # Get the weights of the igraph object
-    weights = ig_graph.es["weight"]
-
-    # # Print the first few weights
-    # print("First few edge weights:", weights[:5])
-    #
-    # # Calculate and print summary statistics
-    # print("Mean weight:", np.mean(weights))
-    # print("Minimum weight:", np.min(weights))
-    # print("Maximum weight:", np.max(weights))
 
     if seed:
         partition = leidenalg.find_partition(ig_graph, leidenalg.ModularityVertexPartition,

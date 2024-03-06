@@ -7,6 +7,7 @@ from .utils import download_and_load_dataframe
 from .community_detection import apply_leiden, apply_louvain
 from .functional_annotation import checkFuncSignificance, checkFuncSignificanceFullNetwork
 from .visualization import plot_nv, plotPPI, plotWordclouds, plotWordCloudsPPI, visualize_KEGG, plotRegNetworks
+from .centrality import calcCentrality
 import os
 import urllib.request
 from tqdm import tqdm
@@ -30,6 +31,8 @@ class PPIGraph:
         self.min_comm_size = min_comm_size
         self.func_annotation_full_network = None
         self.auto_load = auto_load
+        self.partition_centrality = None
+        self.full_network_centrality = None
         self.build_network()        # Build the network upon initialization
 
 
@@ -292,6 +295,48 @@ class PPIGraph:
                 weight = float(interaction["score"])
                 self.network.add_edge(a, b, weight=weight)
 
+    def calc_centrality(self, full_network=False):
+        if full_network:
+            self.full_network_centrality = calcCentrality(G = self.network, partition=None, full_network=True)
+        else:
+            if self.partition == None:
+                print('Community detection necessary first. Starting community detection now with default parameters.')
+                self.community_detection()
+            self.partition_centrality = calcCentrality(G=self.network, partition=self.partition, full_network=False)
+
+    def write_centrality_to_csv(self, full_network=False, file_name = None,):
+
+        if full_network:
+            if self.full_network_centrality == None:
+                print('Node Centrality Calculation necessary first. Starting centrality calculations.')
+                self.calc_centrality(full_network=True)
+            partition_centrality = self.full_network_centrality
+
+            if file_name == None:
+                file_name = 'full_network_centrality.csv'
+        else:
+            if self.partition_centrality == None:
+                print('Node Centrality Calculation necessary first. Starting centrality calculations.')
+                self.calc_centrality(full_network=False)
+            partition_centrality = self.partition_centrality
+
+            if file_name == None:
+                file_name = 'community_network_centrality.csv'
+
+        # Flatten the partition_centrality dictionary to a format suitable for DataFrame
+        data = []
+        for comm, genes in partition_centrality.items():
+            for gene, centrality_measures in genes.items():
+                row = {'gene': gene, 'community': comm, **centrality_measures}
+                data.append(row)
+
+        # Create DataFrame
+        df = pd.DataFrame(data)
+        df.set_index('gene', inplace=True)
+        print('Saving centrality data to ' + file_name)
+        # Write to CSV
+        df.to_csv(file_name)
+
 
     def community_detection(self, iterations=10, algorithm='leiden', seed=None):
         if algorithm == 'leiden':
@@ -481,13 +526,20 @@ class PPIGraph:
 
     def plot_reg_networks(self, full_network=False, community='all', centrality_measure='w_degree', show=True, background='transparent'):
         if full_network:
-            plotRegNetworks(self.network, self.partition, self.plot_dir, full_network=True, centrality_measure=centrality_measure, community=community, show=show,
-                            background=background)
+            if centrality_measure and self.full_network_centrality == None:
+                    print('Node Centrality Calculation necessary first. Starting centrality calculations.')
+                    self.calc_centrality(full_network=True)
+            plotRegNetworks(self.network, self.partition, self.full_network_centrality, self.plot_dir, full_network=True, centrality_measure=centrality_measure, community=community,
+                            show=show, background=background, min_comm_size=self.min_comm_size)
         else:
             if self.partition is None:
                 print('Community detection necessary first. Starting community detection now with default parameters.')
                 self.community_detection()
-            plotRegNetworks(self.network, self.partition, self.plot_dir, full_network=False, centrality_measure=centrality_measure, community=community, show=show, background=background)
+            if centrality_measure and self.partition_centrality == None:
+                    print('Node Centrality Calculation necessary first. Starting centrality calculations.')
+                    self.calc_centrality(full_network=False)
+            plotRegNetworks(self.network, self.partition, self.partition_centrality, self.plot_dir, full_network=False, centrality_measure=centrality_measure, community=community,
+                            show=show, background=background, min_comm_size=self.min_comm_size)
 
 
 def to_igraph(network):
