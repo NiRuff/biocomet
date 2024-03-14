@@ -5,6 +5,45 @@ import pandas as pd
 import shutil
 import gzip
 
+def updateGeneSymbolsHuman(geneSymbols):
+  """
+  This function updates gene symbols in a list based on a reference HGNC mapping file.
+
+  Args:
+      geneSymbols: A list of gene symbols to be updated.
+
+  Returns:
+      A list of updated gene symbols.
+  """
+
+  # Path to the tsv file (assuming it's in the same directory)
+  dict_path = os.path.join(os.path.dirname(__file__), 'data', 'HGNCMapping_human.tsv')
+
+  # Read mapping data as DataFrame
+  try:
+    gene_hgnc_df = pd.read_csv(dict_path, sep='\t', index_col=0)
+  except FileNotFoundError:
+    print(f"Error: HGNC mapping file not found at {dict_path}")
+    return geneSymbols  # Return original list if file not found
+
+  # Update gene symbols in the list
+  updated_symbols = []
+  for gene in geneSymbols:
+    # Check if gene exists in the approved symbol index
+    if gene in gene_hgnc_df.index:
+      approved_symbol = gene_hgnc_df.loc[gene].name
+    else:
+        # Check if gene appears as a previous symbol for any approved symbol
+        is_prev_symbol = gene_hgnc_df['Previous symbols'].notna() & gene_hgnc_df['Previous symbols'].str.fullmatch(rf"\b{gene}\b", case=False)
+        if is_prev_symbol.any():
+            approved_symbol = gene_hgnc_df[is_prev_symbol].index
+        else:
+            approved_symbol = gene
+
+    updated_symbols.append(approved_symbol)
+
+  return updated_symbols
+
 
 def download_and_load_dataframe(url, local_filename):
 
