@@ -29,7 +29,7 @@ from PIL import Image, ImageDraw
 from io import BytesIO
 import json
 import os
-
+import math
 
 def plot_nv(G, sigPartition, min_comm_size=3, plot_dir='.', legend=True, kind='ArcPlots', show=True, background='transparent'):
 
@@ -110,7 +110,62 @@ def plot_nv(G, sigPartition, min_comm_size=3, plot_dir='.', legend=True, kind='A
 
 
 
-def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True, background='transparent'):
+def weighted_set_cover(df, topN=None, category=None, description=None):
+  """
+  Performs a greedy weighted set cover algorithm on a DataFrame and returns a reduced DataFrame.
+
+  Args:
+      df (pd.DataFrame): DataFrame with columns 'inputGenes', 'category', and 'fdr' (p-value).
+                         'description' column is optional.
+      topN (int, optional): The desired number of pathways to return. Defaults to None (all pathways).
+      category (str, optional): Filter pathways by a specific category value.
+      description (str, optional): Filter pathways by a specific description value (partial match).
+
+  Returns:
+      pd.DataFrame: Reduced DataFrame containing only the selected pathways.
+  """
+
+  # Function to process a single pathway for weighted set cover
+  def process_set(genes, fdr):
+    cost = -math.log10(fdr)  # Cost function based on negative log p-value
+    return cost
+
+  # Prepare data for weighted set cover
+  all_genes = set(df["inputGenes"].sum())  # Set of all unique genes
+  costs = -np.log10(df["fdr"])  # Calculate costs based on negative log p-value
+
+  # Filter DataFrame if category or description is specified
+  if category:
+    df = df[df["category"] == category]
+  if description:
+    df = df[df["description"].str.contains(description)]
+
+  # Initialize variables for greedy algorithm
+  selected_genes = set()
+  cur_res = []  # List to store selected pathway indices
+  remain = len(all_genes)  # Number of uncovered genes
+
+  # Iterate through each row (pathway) in the DataFrame
+  for idx, row in df.iterrows():
+    genes = set(row["inputGenes"])
+    fdr = row["fdr"]
+
+    # Check if all genes are covered or limit reached
+    if remain == 0 or (topN is not None and len(cur_res) >= topN):
+      break
+
+    marginal_gain = process_set(genes, fdr)
+
+    # Update only if marginal gain is positive
+    if marginal_gain > 0:
+      selected_genes.update(genes)
+      remain -= len(genes)
+      cur_res.append(idx)  # Store row index (not original index)
+
+  # Return the reduced DataFrame based on row indices
+  return df.loc[cur_res]
+
+def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True, background='transparent', weightedSetCover=False):
     if not isinstance(categories, str):
         pass
     elif categories.lower() == 'pathways':
@@ -141,6 +196,9 @@ def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True, ba
     for commNum, df in funcAnnots.items():
         if categories != 'all':
             df = df[df['category'].isin(categories)]
+
+        if weightedSetCover:
+            df = weighted_set_cover(df)
 
         # Create a word cloud
         if background == 'transparent':
@@ -294,7 +352,7 @@ def plotPPI(PPIGraph, full_network=False, show=True, background='transparent'):
             plt.close()
 
 
-def plotWordCloudsPPI(PPIGraph, categories='default', full_network = False, show=True, background='transparent'):
+def plotWordCloudsPPI(PPIGraph, categories='default', full_network = False, show=True, background='transparent', weightedSetCover=False):
     if type(categories) != str:
         pass
     elif categories.lower() == 'pathways':
@@ -359,6 +417,9 @@ def plotWordCloudsPPI(PPIGraph, categories='default', full_network = False, show
             continue
 
         df = df[df['category'].isin(categories)]
+
+        if weightedSetCover:
+            df = weighted_set_cover(df)
 
         # Create a word cloud
         if background == 'transparent':

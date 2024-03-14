@@ -406,7 +406,7 @@ class PPIGraph:
                 self.community_detection()
             plotPPI(self, full_network=False, show=show, background=background)
 
-    def plot_Wordclouds(self, full_network=False, categories='default', show=True, background='transparent'):
+    def plot_Wordclouds(self, full_network=False, categories='default', show=True, background='transparent', weightedSetCover=False):
         if full_network:
             if self.func_annotation_full_network == None:
                 print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
@@ -415,7 +415,7 @@ class PPIGraph:
             if (categories.lower() in ['default', 'pathways', 'all', 'no_pmid', 'no_go']) or (type(categories) == list):
                 plotWordclouds(self.func_annotation_full_network,
                                categories=categories,
-                               plot_dir=self.plot_dir, show=show, background=background)
+                               plot_dir=self.plot_dir, show=show, background=background, weightedSetCover=weightedSetCover)
             else:
                 raise AttributeError("categories argument not set properly. Specify list of databases or "
                                      "one of the following strings 'all'/'default'/'pathways'")
@@ -432,12 +432,12 @@ class PPIGraph:
             if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
                 plotWordclouds(self.func_annotation,
                                categories=categories,
-                               plot_dir=self.plot_dir, show=show, background=background)
+                               plot_dir=self.plot_dir, show=show, background=background, weightedSetCover=weightedSetCover)
             else:
                 raise AttributeError("categories argument not set properly. Specify list of databases or "
                                      "one of the following strings 'all'/'default'/'pathways'")
 
-    def plot_Wordclouds_PPI(self, full_network=False, categories='default', show=True, background='transparent'):
+    def plot_Wordclouds_PPI(self, full_network=False, categories='default', show=True, background='transparent', weightedSetCover=False):
 
         if full_network:
             if self.func_annotation_full_network == None:
@@ -445,7 +445,7 @@ class PPIGraph:
                 self.get_functional_annotation(full_network=True, categories=categories)
 
             if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
-                plotWordCloudsPPI(self, full_network=full_network, categories=categories, show=show, background=background)
+                plotWordCloudsPPI(self, full_network=full_network, categories=categories, show=show, background=background,weightedSetCover=weightedSetCover)
             else:
                 raise AttributeError("categories argument not set properly. Specify list of databases or "
                                      "one of the following strings 'all'/'default'/'pathways'")
@@ -460,7 +460,7 @@ class PPIGraph:
                 self.get_functional_annotation()
 
             if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
-                plotWordCloudsPPI(self, categories=categories, show=show, background=background)
+                plotWordCloudsPPI(self, categories=categories, show=show, background=background,weightedSetCover=weightedSetCover)
             else:
                 raise AttributeError("categories argument not set properly. Specify list of databases or "
                                      "one of the following strings 'all'/'default'/'pathways'")
