@@ -63,15 +63,23 @@ def plot_nv(G, sigPartition, min_comm_size=3, plot_dir='.', legend=True, kind='A
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
+    # Step 1: Check if any edge has a weight > 1
+    weight_greater_than_one = any(edge_data.get('weight', 0) > 1 for _, _, edge_data in G_trunc.edges(data=True))
+
+    # Step 2: If no edge has weight > 1, multiply all weights by 1000
+    if not weight_greater_than_one:
+        for u, v, edge_data in G_trunc.edges(data=True):
+            edge_data['weight'] = edge_data.get('weight', 0) * 1000
+            # Update the edge with the new weight
+            G_trunc[u][v]['weight'] = edge_data['weight']
+
     if kind == 'ArcPlots':
         g = nv.arc(G_trunc, node_color_by="community", group_by="community", edge_color_by="weight", edge_alpha_by="weight")
-
         nv.annotate.arc_group(G_trunc, group_by="community")
 
     elif kind == 'CircosPlots':
         g = nv.circos(G_trunc, node_color_by="community", group_by="community", edge_color_by="weight",
                       edge_alpha_by="weight")
-
         nv.annotate.circos_group(G_trunc, group_by="community")
 
     g.get_figure().set_size_inches(10, 10)
@@ -732,7 +740,7 @@ def uniprot_to_kegg_dict(uniprot_ids):
             print(f"Failed to fetch data for UniProt ID {uniprot_id}. Status code: {response.status_code}")
     return kegg_to_uniprots
 
-def scale_parameters_based_on_network_size(G, base_node_size=1500, base_font_size=8, base_edge_width=4, base_fig_size=12):
+def scale_parameters_based_on_network_size(G, base_font_size=8, base_fig_size=12):
     """
     Adjust node size, font size, and edge width based on the number of nodes in the graph.
 
@@ -745,15 +753,14 @@ def scale_parameters_based_on_network_size(G, base_node_size=1500, base_font_siz
     num_nodes = len(G.nodes)
 
     # Define scaling factors - these values are adjustable based on desired appearance
-    scale_factor = 1.0
     if num_nodes < 50:
-        scale_factor = 0.8
+        scale_factor = 0.85
     elif num_nodes < 100:
-        scale_factor = 0.6
+        scale_factor = 0.75
     elif num_nodes < 150:
-        scale_factor = 0.4
+        scale_factor = 0.55
     elif num_nodes < 250:
-        scale_factor = 0.3
+        scale_factor = 0.35
     else:
         scale_factor = 0.25
 
@@ -813,13 +820,13 @@ def plotRegNetworks(G, partition, centrality, plot_dir=".", full_network=False, 
 
             # Normalize centrality values for visualization
             max_centrality = max(centrality_values.values())
-            normalized_centrality = {node: 750 + centrality / max_centrality * 1250 for node, centrality in
+            normalized_centrality = {node: 1000 + centrality / max_centrality * 1500 for node, centrality in
                                      centrality_values.items()}
 
             # Use normalized centrality for node size
             node_sizes = [normalized_centrality[node] for node in G.nodes]
         else:
-            node_sizes = [1500 for node in G.nodes]
+            node_sizes = [2000 for node in G.nodes]
 
         # Custom function to draw halos
         def draw_halos(pos, node_sizes, node_alphas, ax):
@@ -986,13 +993,13 @@ def plotRegNetworks(G, partition, centrality, plot_dir=".", full_network=False, 
 
                 # Normalize centrality values for visualization
                 max_centrality = max(centrality_values.values())
-                normalized_centrality = {node: 750 + centrality / max_centrality * 1250 for node, centrality in
+                normalized_centrality = {node: 1000 + centrality / max_centrality * 1500 for node, centrality in
                                          centrality_values.items()}
 
                 # Use normalized centrality for node size
                 node_sizes = [normalized_centrality[node] for node in G_sub.nodes]
             else:
-                node_sizes = [1500 for node in G_sub.nodes]
+                node_sizes = [2000 for node in G_sub.nodes]
 
             # Custom function to draw halos
             def draw_halos(pos, node_sizes, node_alphas, ax):

@@ -2,13 +2,13 @@ from setuptools import setup, find_packages
 
 setup(
     name='biocomet',
-    version='0.1.5',
+    version='0.1.7',
     author='Nicolas Ruffini',
     author_email='nicolas.ruffini@lir-mainz.de',
     description='A brief description of the biocomet package',
     url='https://github.com/NiRuff/COMET/tree/master_kegg',
     packages=find_packages(),
-    package_data={'biocomet': ['data/*.json']},
+    package_data={'biocomet': ['data/*.json', 'data/*.tsv']},
     classifiers=[
         'Programming Language :: Python :: 3',
         'Operating System :: OS Independent',
