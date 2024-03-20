@@ -6,7 +6,7 @@ import igraph as ig
 from .utils import download_and_load_dataframe
 from .community_detection import apply_leiden, apply_louvain
 from .functional_annotation import checkFuncSignificance, checkFuncSignificanceFullNetwork
-from .visualization import plot_nv, plotPPI, plotWordclouds, plotWordCloudsPPI, visualize_KEGG, plotRegNetworks
+from .visualization import plot_nv, plotPPI, plotWordclouds, plotWordCloudsPPI, visualize_KEGG, plotRegNetworks, visualize_Reactome
 from .centrality import calcCentrality
 import os
 import urllib.request
@@ -16,7 +16,17 @@ from tqdm import tqdm
 class PPIGraph:
     def __init__(self, gene_list, reg_list=None, organism='9606', min_score=400, no_text=False, physical=False, auto_load=False, local_data=False, p_adj_cutoff = 0.05, min_comm_size=3):
         self.gene_list = pd.Series(gene_list)
+        if len(self.gene_list) != len(set(self.gene_list)):
+            raise AttributeError('Dplicates detected in Gene list. Please remove duplicates.')
         self.reg_list = reg_list
+        if self.reg_list is not None:
+            if len(self.reg_list) == len(self.gene_list):
+                self.reg_list = pd.Series(self.reg_list)
+                self.gene_reg_dict = dict(zip(self.gene_list, self.reg_list))
+            else:
+                raise AssertionError('Reg list and Gene list have different length.')
+        else:
+            self.gene_reg_dict = None
         self.organism = organism
         self.min_score = min_score
         self.no_text = no_text
@@ -27,7 +37,6 @@ class PPIGraph:
         self.partition = None       # Placeholder for the partition
         self.func_annotation = None # Placeholder for the functional annotation
         self.plot_dir = '.'
-        self.gene_reg_dict = None
         self.min_comm_size = min_comm_size
         self.func_annotation_full_network = None
         self.auto_load = auto_load
@@ -123,7 +132,32 @@ class PPIGraph:
                     "auto_load=True when instantiating the network to load it automatically.")
 
         else:
-            self.gene_list = getPreferredNames(self.gene_list, organism=self.organism)
+            name_pref_name_dict = getPreferredNames(self.gene_list, organism=self.organism)
+
+            # Reverse the name_pref_name_dict to group by preferred names
+            pref_name_to_orig = {}
+            for orig, pref in name_pref_name_dict.items():
+                if pref not in pref_name_to_orig:
+                    pref_name_to_orig[pref] = [orig]
+                else:
+                    pref_name_to_orig[pref].append(orig)
+
+            # Prepare the new_gene_reg_dict with averaged values
+            new_gene_reg_dict = {}
+            for pref, originals in pref_name_to_orig.items():
+                # If multiple original names map to the same preferred name, average their values
+                if len(originals) > 1:
+                    avg_value = sum(self.gene_reg_dict[orig] for orig in originals) / len(originals)
+                    new_gene_reg_dict[pref] = avg_value
+                    print(
+                        f"Duplicate mapping found for preferred name '{pref}'. The regulation values for these cases will be averaged for further analysis.")
+                else:
+                    new_gene_reg_dict[pref] = self.gene_reg_dict[originals[0]]
+
+            # Overwrite the old gene_reg_dict with the new, adjusted dictionary
+            self.gene_reg_dict = new_gene_reg_dict
+
+            self.gene_list = self.gene_list.replace(name_pref_name_dict)
 
         if not self.local_data: # is automatically True if list is too long for string API
             # Construct the request URL
@@ -249,7 +283,7 @@ class PPIGraph:
         if self.reg_list is not None:
             # Verify gene list and regulation list compatibility
             if len(self.gene_list) != len(self.reg_list):
-                raise ValueError("Gene list and regulation list must match in length and contain no duplicates.")
+                raise ValueError("Gene list and regulation list must match in length.")
 
             elif len(set(self.gene_list)) != len(self.gene_list):
                 print('Duplicates found in gene list.')
@@ -336,7 +370,6 @@ class PPIGraph:
         print('Saving centrality data to ' + file_name)
         # Write to CSV
         df.to_csv(file_name)
-
 
     def community_detection(self, iterations=10, algorithm='leiden', seed=None):
         if algorithm == 'leiden':
@@ -467,6 +500,70 @@ class PPIGraph:
                 raise AttributeError("categories argument not set properly. Specify list of databases or "
                                      "one of the following strings 'all'/'default'/'pathways'")
 
+    def plot_Reactome(self, pathway='all', community='all', show=True, background='transparent'):
+        if self.partition == None:
+            print('Community detection necessary first. Starting community detection now with default parameters.')
+            self.community_detection()
+        if self.func_annotation == None:
+            print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
+            self.get_functional_annotation()
+
+        if self.reg_list is not None:
+            # Verify gene list and regulation list compatibility
+            if len(self.gene_list) != len(self.reg_list) or len(set(self.gene_list)) != len(self.gene_list):
+                raise ValueError("Gene list and regulation list must match in length and contain no duplicates.")
+
+            if self.gene_reg_dict is None:
+                # Create dictionary mapping gene_list to reg_list
+                self.gene_reg_dict = dict(zip(self.gene_list, self.reg_list))
+        else:
+            raise AttributeError("reg_list attribute not set. Please provide regulation list correpsonding to the gene list.")
+
+        # first check if specific pathway chosen
+        if pathway != 'all':
+            if community != 'all':  # specific community and pathway
+                df = self.func_annotation[community]  # just specific community's df
+                df_reactome = df[(df['category'] == 'RCTM') & (df['term'] == pathway)].copy()
+                df_reactome['term'] = 'R-' + df_reactome['term']
+                if not df_reactome.empty():
+                    pathway_genes_dict = zip(df_reactome['term'], df_reactome['inputGenes'])
+                    for pathway_id, genes in pathway_genes_dict:
+                        gene_reg_dict = {k:v for k,v in self.gene_reg_dict.items() if k in genes}
+                        visualize_Reactome(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
+                                       plot_dir=self.plot_dir, community=community, show=show, background=background)
+                else:
+                    print(pathway + ' not found in sig. results of community ' + community)
+
+            else:  # specific pathway in all communities
+                for comm, df in self.func_annotation.items():
+                    df_reactome = df[(df['category'] == 'RCTM') & (df['term'] == pathway)].copy()
+                    df_reactome['term'] = 'R-' + df_reactome['term']
+                    if not df_reactome.empty():
+                        pathway_genes_dict = zip(df_reactome['term'], df_reactome['inputGenes'])
+                        for pathway_id, genes in pathway_genes_dict:
+                            gene_reg_dict = {k:v for k,v in self.gene_reg_dict.items() if k in genes}
+                            visualize_Reactome(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
+                                           plot_dir=self.plot_dir, community=comm, show=show, background=background)
+        else:
+            if community != 'all':  # implement all pathways of given community
+                df = self.func_annotation[community]  # just specific community's df
+                df_reactome = df[df['category'] == 'RCTM'].copy()
+                df_reactome['term'] = 'R-' + df_reactome['term']
+                pathway_genes_dict = zip(df_reactome['term'], df_reactome['inputGenes'])
+                for pathway_id, genes in pathway_genes_dict:
+                    gene_reg_dict = {k: v for k, v in self.gene_reg_dict.items() if k in genes}
+                    visualize_Reactome(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
+                                   plot_dir=self.plot_dir, community=community, show=show, background=background)
+            else: # all pathways all communities
+                for comm, df in self.func_annotation.items():
+                    df_reactome = df[df['category'] == 'RCTM'].copy()
+                    df_reactome['term'] = 'R-' + df_reactome['term']
+                    pathway_genes_dict = zip(df_reactome['term'], df_reactome['inputGenes'])
+                    for pathway_id, genes in pathway_genes_dict:
+                        gene_reg_dict = {k:v for k,v in self.gene_reg_dict.items() if k in genes}
+                        visualize_Reactome(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
+                                       plot_dir=self.plot_dir, community=comm, show=show, background=background)
+
     def plot_KEGG(self, pathway='all', community='all', show=True, transparency=.5, background='transparent'):
 
         if self.partition == None:
@@ -484,6 +581,8 @@ class PPIGraph:
             if self.gene_reg_dict is None:
                 # Create dictionary mapping gene_list to reg_list
                 self.gene_reg_dict = dict(zip(self.gene_list, self.reg_list))
+        else:
+            raise AttributeError("reg_list attribute not set. Please provide regulation list correpsonding to the gene list.")
 
         # first check if specific pathway chosen
         if pathway != 'all':
@@ -508,6 +607,7 @@ class PPIGraph:
                             gene_reg_dict = {k:v for k,v in self.gene_reg_dict.items() if k in genes}
                             visualize_KEGG(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
                                            plot_dir=self.plot_dir, transparency=transparency, community=comm, show=show, background=background)
+
         else:
             if community != 'all':  # implement all pathways of given community
                 df = self.func_annotation[community]  # just specific community's df
@@ -576,4 +676,5 @@ def query_stringdb(gene_ids, organism):
     return pd.DataFrame(response.json())
 
 def getPreferredNames(gene_ids, organism=9606):
-    return query_stringdb(gene_ids, organism=organism)["preferredName"].values
+    mapping = query_stringdb(gene_ids, organism=organism)
+    return dict(zip(mapping["queryItem"].values, mapping["preferredName"].values))

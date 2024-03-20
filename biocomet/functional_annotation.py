@@ -68,7 +68,11 @@ def checkFuncSignificance(PPIGraph, sig_only=True,
                       "MPO", "InterPro",]
 
     # get lists of all communites
-    communities = [[] for x in range(len(set(PPIGraph.partition.values())))]
+    #communities = [[] for x in range(len(set(PPIGraph.partition.values())))]
+    communities = dict()
+    for comm in PPIGraph.partition.values():
+        communities[comm] = []
+
     for gene, comm_num in PPIGraph.partition.items():
         communities[comm_num].append(gene)
 
@@ -77,11 +81,17 @@ def checkFuncSignificance(PPIGraph, sig_only=True,
     method = "enrichment"
 
     sigCommNumbers = set()
-    commNumbers = set()
     funcAnnots = dict()
 
-    for i in range(len(communities)):
-        protein_list = communities[i]
+#    for i in range(len(communities)):
+    for comm, genes in communities.items():
+
+        protein_list = genes
+
+        if len(protein_list) > 1000:
+            raise ValueError("Too many proteins in community {} for performing functional enrichment. \n"
+                             "Consider using a different community detection approach "
+                             "or being more conservative when selecting genes for the analysis".format(comm))
 
         ## Construct URL
         request_url = "/".join([string_api_url, output_format, method])
@@ -98,7 +108,6 @@ def checkFuncSignificance(PPIGraph, sig_only=True,
         ## Read and parse the results
         data = json.loads(response.text)
         anyProcessSig = False
-        commNumbers.add(i)
 
         for row in data:
             fdr = float(row["fdr"])
@@ -107,15 +116,15 @@ def checkFuncSignificance(PPIGraph, sig_only=True,
             if categories != 'all': # filter for categories
                 if (not sig_only) or (category in categories and fdr < PPIGraph.p_adj_cutoff):
                     anyProcessSig = True
-                    sigCommNumbers.add(i)
+                    sigCommNumbers.add(comm)
 
             else: # do not filter
                 if (not sig_only) or (fdr < PPIGraph.p_adj_cutoff):
                     anyProcessSig = True
-                    sigCommNumbers.add(i)
+                    sigCommNumbers.add(comm)
 
         if anyProcessSig:
-            funcAnnots[i] = pd.DataFrame(data)
+            funcAnnots[comm] = pd.DataFrame(data)
 
     # create dict for sig partition and attributes to add for nodes
     sigPartition = dict()

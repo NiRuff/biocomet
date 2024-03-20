@@ -2,9 +2,9 @@ import pandas as pd
 import os
 
 # Define citation messages
-citation_message_mathys = "Please cite: \n[Mathys et al., 2019, Single-cell transcriptomic analysis of Alzheimer’s disease,  Nature]\n for the Mathys et al., 2019 dataset."
-citation_message_ruffini_2020 = "Please cite: \n[Ruffini et al., 2020, Common Factors in Neurodegeneration: A Meta-Study Revealing Shared Patterns on a Multi-Omics Scale,  Cells]\n for the Ruffini et al., 2020 dataset."
-citation_message_ruffini_2022 = "Please cite: \n[Ruffini et al., 2022, The Big Picture of Neurodegeneration: A Meta Study to Extract the Essential Evidence on Neurodegenerative Diseases in a Network-Based Approach,  Front. Aging Neurosci.]\n for the Ruffini et al., 2022 dataset."
+citation_message_mathys = "Please cite: \n[Mathys et al., 2019, Single-cell transcriptomic analysis of Alzheimer’s disease,  Nature]\n for this dataset."
+citation_message_ruffini_2020 = "Please cite: \n[Ruffini, Klingenberg et al., 2020, Common Factors in Neurodegeneration: A Meta-Study Revealing Shared Patterns on a Multi-Omics Scale,  Cells]\n for this dataset."
+citation_message_ruffini_2022 = "Please cite: \n[Ruffini, Klingenberg et al., 2022, The Big Picture of Neurodegeneration: A Meta Study to Extract the Essential Evidence on Neurodegenerative Diseases in a Network-Based Approach,  Front. Aging Neurosci.]\n for this dataset."
 
 
 class LazyDataset:

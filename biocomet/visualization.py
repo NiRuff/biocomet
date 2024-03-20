@@ -712,7 +712,6 @@ def fetch_pathway_kgml(pathway_id):
         print(f"Failed to fetch KGML for pathway {pathway_id}")
         return None
 
-
 def parse_kegg_ids_from_kgml_v2(kgml_content):
     root = ET.fromstring(kgml_content)
     graphics_dict = {}
@@ -765,7 +764,6 @@ def convert_gene_symbols_to_uniprot_mygene(gene_symbols, organism='9606'):
             print(hit)
             gene_to_uniprot[gene_symbol] = None
     return gene_to_uniprot
-
 
 def uniprot_to_kegg_dict(uniprot_ids):
     kegg_to_uniprots = {}  # Dictionary to store KEGG ID to UniProt IDs mappings
@@ -1146,3 +1144,67 @@ def plotRegNetworks(G, partition, centrality, plot_dir=".", full_network=False, 
             if show == True:
                 plt.show()
             plt.close()
+
+def visualize_Reactome(pathway_id, gene_reg_dict, organism, plot_dir=".", community=None, background='transparent', show=True, suffix=''):
+
+    # ensure dir existence
+    pathlib.Path(plot_dir + "/Reactome/").mkdir(parents=True, exist_ok=True)
+    if community is not None:
+        pathlib.Path(plot_dir + "/Reactome/" + str(community) + "/").mkdir(parents=True, exist_ok=True)
+
+    if organism == 'human':
+        organism = 9606
+    elif organism == 'mouse':
+        organism = 10090
+
+    # Fetch the pathway image
+    pathway_image_data = fetch_reactome_pathway_image(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=organism, image_format='PNG')
+
+    if community is not None:  # if specified
+        file_name = plot_dir + '/Reactome/' + str(community) + '/' + pathway_id + suffix + '.png'
+    else:  # if unspecified
+        file_name = plot_dir + "/Reactome/" + pathway_id + suffix + '.png'
+
+    # Assuming pathway_image_data is bytes data
+    import base64
+    try:
+        # Decode the bytes and convert to PIL Image
+        decoded_data = base64.b64decode(pathway_image_data)
+        img = Image.frombytes(mode='RGB', size=(20, 20), data=decoded_data)  # Replace with actual values
+
+        # Save the image
+        img.save(file_name)
+        print("Saving Reactome pathways to %s" % file_name)
+
+    except Exception as e:
+        print(f"Error saving image: {e}")
+
+    if show:
+        display(Image(pathway_image_data))
+
+
+def fetch_reactome_pathway_image(gene_reg_dict, pathway_id, organism, image_format, interactors=False):
+    # Step 1: Post gene expressions to get the analysis token
+    analysis_url = f'https://reactome.org/AnalysisService/identifiers/?interactors=false&species={organism}&pageSize=20&page=1&sortBy=ENTITIES_PVALUE&order=ASC&resource=TOTAL&pValue=1&includeDisease=true'
+    gene_data = '\n'.join([f'{gene}, {exp}' for gene, exp in gene_reg_dict.items()])
+    headers = {
+        'Content-Type': 'text/plain'
+    }
+    response = requests.post(analysis_url, headers=headers, data=gene_data)
+    if response.status_code != 200:
+        raise ValueError(f"Failed to post gene expressions. Status code: {response.status_code}")
+    analysis_token = response.json()['summary']['token']
+
+    # Step 2: Fetch the pathway diagram image using the token
+    image_url = f'https://reactome.org/ContentService/exporter/diagram/{pathway_id}.{image_format}?quality=10&flgInteractors={interactors}&title=true&margin=15&ehld=true&diagramProfile=Standard&token={analysis_token}&resource=TOTAL&analysisProfile=Strosobar%2C%20Copper%2520Plus'
+    # image_url = f'https://reactome.org/ContentService/exporter/reaction/{pathway_id}.{image_format}?quality=10&flgInteractors=false&sel=&title=true&margin=15&diagramProfile=Standard&token={analysis_token}&analysisProfile=Strosobar&resource=TOTAL'
+    image_response = requests.get(image_url)
+    if image_response.status_code != 200:
+        print(analysis_token)
+        print(pathway_id)
+        raise ValueError(f"Failed to fetch pathway image. Status code: {image_response.status_code}")
+
+    # Return the image data for display
+    return image_response.content
+
+
