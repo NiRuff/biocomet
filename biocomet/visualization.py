@@ -1165,21 +1165,22 @@ def visualize_Reactome(pathway_id, gene_reg_dict, organism, plot_dir=".", commun
     else:  # if unspecified
         file_name = plot_dir + "/Reactome/" + pathway_id + suffix + '.png'
 
-    # Assuming pathway_image_data is bytes data
-    import base64
-    try:
-        # Decode the bytes and convert to PIL Image
-        decoded_data = base64.b64decode(pathway_image_data)
-        img = Image.frombytes(mode='RGB', size=(20, 20), data=decoded_data)  # Replace with actual values
-
-        # Save the image
-        img.save(file_name)
-        print("Saving Reactome pathways to %s" % file_name)
-
-    except Exception as e:
-        print(f"Error saving image: {e}")
+    # # Assuming pathway_image_data is bytes data
+    # import base64
+    # try:
+    #     # Decode the bytes and convert to PIL Image
+    #     decoded_data = base64.b64decode(pathway_image_data)
+    #     img = Image.frombytes(mode='RGB', size=(20, 20), data=decoded_data)  # Replace with actual values
+    #
+    #     # Save the image
+    #     img.save(file_name)
+    #     print("Saving Reactome pathways to %s" % file_name)
+    #
+    # except Exception as e:
+    #     print(f"Error saving image: {e}")
 
     if show:
+        from IPython.display import Image, display
         display(Image(pathway_image_data))
 
 
