@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 class PPIGraph:
     def __init__(self, gene_list, reg_list=None, organism='9606', min_score=400, no_text=False, physical=False, auto_load=False, local_data=False, p_adj_cutoff = 0.05, min_comm_size=3):
-        self.gene_list = gene_list
+        self.gene_list = pd.Series(gene_list)
         self.reg_list = reg_list
         self.organism = organism
         self.min_score = min_score
@@ -346,14 +346,16 @@ class PPIGraph:
 
     def get_functional_annotation(self, full_network=False, categories = 'default'):
 
-        if len(self.gene_list) > 1000:
-            raise ValueError("Gene list too long. Either the community is too large with more than 1000 genes"
-                             " or you are conducting a full_network analysis on a large network. Functional Enrichment "
-                             " can not be calculated currently for such large lists of genes. For the latter case, "
-                             " consider setting full_network=False to check the individual communities for their "
-                             " functional enrichment.")
+
 
         if full_network:
+            if len(self.gene_list) > 1000:
+                raise ValueError("Gene list too long. Either the community is too large with more than 1000 genes"
+                                 " or you are conducting a full_network analysis on a large network. Functional Enrichment "
+                                 " can not be calculated currently for such large lists of genes. For the latter case, "
+                                 " consider setting full_network=False to check the individual communities for their "
+                                 " functional enrichment.")
+
             if (categories.lower() in ['default', 'pathways', 'all', 'no_pmid', 'no_go']) or (type(categories) == list):
                 self.func_annotation_full_network = checkFuncSignificanceFullNetwork(self, categories=categories)
             else:
