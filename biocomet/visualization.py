@@ -6,6 +6,8 @@ warnings.filterwarnings('ignore', message="No data for colormapping provided via
 import matplotlib as mpl
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap, Normalize
+
 import matplotlib.colors as mcolors
 from matplotlib.lines import Line2D
 import matplotlib.patches as mpatches
@@ -30,6 +32,7 @@ from io import BytesIO
 import json
 import os
 import math
+
 
 def plot_nv(G, sigPartition, min_comm_size=3, plot_dir='.', legend=True, kind='ArcPlots', show=True, background='transparent'):
 
@@ -551,6 +554,46 @@ def visualize_KEGG(pathway_id, gene_reg_dict, organism, plot_dir=".", transparen
 
     annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=plot_dir, transparency=transparency, community=community, show=show, background=background, suffix=suffix)
 
+def create_non_linear_colormap(non_linear_region = 0.0005, intensity_limit=0.25):
+    """
+    Creates a non-linear colormap that mimics 'coolwarm' with adjustments.
+
+    Parameters:
+    - intensity_limit: Adjusts the steepness of the slope around ±0.01.
+
+    Returns:
+    - A matplotlib colormap instance.
+    """
+
+    # Define the non-linear transformation centered at 0
+    def non_linear_transform(val, non_linear_region):
+        non_linear_region = non_linear_region
+        if abs(val) < non_linear_region:
+            return 0.5 * intensity_limit * (val / non_linear_region) + 0.5
+        else:
+            return (0.5 - intensity_limit) * (abs(val) - non_linear_region) / (0.5 - non_linear_region) * np.sign(
+                val) + 0.5 + intensity_limit * np.sign(val)
+
+    # Create the 'coolwarm' colormap
+    coolwarm = plt.get_cmap('coolwarm')
+
+    # Normalize the input for the colormap definition
+    def normalize(value, start, end):
+        return (value - start) / (end - start)
+
+    # Generate a custom colormap by applying the non-linear transformation
+    cdict = {'red': [], 'green': [], 'blue': []}
+    # Ensure the loop runs from 0 to 1
+    for x in np.linspace(0, 1, 256):  # Corrected normalization
+        # Apply transformation within normalized -1 to 1 space, then adjust for colormap
+        transformed_x = non_linear_transform(x * 2 - 1, non_linear_region)  # Adjust to -1 to 1 space
+        r, g, b, _ = coolwarm(transformed_x)
+        cdict['red'].append((x, r, r))
+        cdict['green'].append((x, g, g))
+        cdict['blue'].append((x, b, b))
+
+    # Create and return the non-linear colormap
+    return LinearSegmentedColormap('Custom_Coolwarm', segmentdata=cdict, N=256)
 
 def annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=".", transparency=.5, community=None, show=True, background='transparent', suffix=''):
 
@@ -583,8 +626,10 @@ def annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=".", transpare
     # Adjust min_expr and max_expr to be le/ge than 0
     min_expr = min(min_expr, -1)
     max_expr = max(max_expr, +1)
+
+    # Create the custom colormap and normalization
+    cmap = create_non_linear_colormap()
     norm = mcolors.TwoSlopeNorm(vmin=min_expr, vcenter=0, vmax=max_expr)
-    cmap = plt.get_cmap('coolwarm')
 
     for graphic_id, (positional_info, kegg_ids) in graphics_info.items():
         x, y, w, h = positional_info['x'], positional_info['y'], positional_info['width'], positional_info['height']
