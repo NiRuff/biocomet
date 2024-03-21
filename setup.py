@@ -30,6 +30,7 @@ setup(
         'tqdm>=4.66.2',
         'wordcloud>=1.9.3',
         'networkx>=3.2.1',
-        'python-louvain>=0.16'
+        'python-louvain>=0.16',
+        'svglib>=1.5',
     ]
 )

@@ -502,7 +502,7 @@ def plotWordCloudsPPI(PPIGraph, categories='default', full_network = False, show
         plt.close()
 
 
-def visualize_KEGG(pathway_id, gene_reg_dict, organism, plot_dir=".", transparency=.5, community=None, show=True, background='transparent', suffix=''):
+def visualize_KEGG(pathway_id, gene_reg_dict, organism=9606, plot_dir=".", transparency=.5, community=None, show=True, background='transparent', suffix=''):
 
     if organism == 'human':
         organism = 9606
@@ -1145,7 +1145,7 @@ def plotRegNetworks(G, partition, centrality, plot_dir=".", full_network=False, 
                 plt.show()
             plt.close()
 
-def visualize_Reactome(pathway_id, gene_reg_dict, organism, plot_dir=".", community=None, background='transparent', show=True, suffix=''):
+def visualize_Reactome(pathway_id, gene_reg_dict, organism=9606, plot_dir=".", community=None, background='transparent', show=True, suffix=''):
 
     # ensure dir existence
     pathlib.Path(plot_dir + "/Reactome/").mkdir(parents=True, exist_ok=True)
@@ -1165,21 +1165,13 @@ def visualize_Reactome(pathway_id, gene_reg_dict, organism, plot_dir=".", commun
     else:  # if unspecified
         file_name = plot_dir + "/Reactome/" + pathway_id + suffix + '.png'
 
-    # # Assuming pathway_image_data is bytes data
-    # import base64
-    # try:
-    #     # Decode the bytes and convert to PIL Image
-    #     decoded_data = base64.b64decode(pathway_image_data)
-    #     img = Image.frombytes(mode='RGB', size=(20, 20), data=decoded_data)  # Replace with actual values
-    #
-    #     # Save the image
-    #     img.save(file_name)
-    #     print("Saving Reactome pathways to %s" % file_name)
-    #
-    # except Exception as e:
-    #     print(f"Error saving image: {e}")
+    with open(file_name, 'wb') as file:
+        file.write(pathway_image_data)
+
+    print(f"Image saved to {file_name}")
 
     if show:
+        print(pathway_id)
         from IPython.display import Image, display
         display(Image(pathway_image_data))
 
@@ -1197,8 +1189,8 @@ def fetch_reactome_pathway_image(gene_reg_dict, pathway_id, organism, image_form
     analysis_token = response.json()['summary']['token']
 
     # Step 2: Fetch the pathway diagram image using the token
-    image_url = f'https://reactome.org/ContentService/exporter/diagram/{pathway_id}.{image_format}?quality=10&flgInteractors={interactors}&title=true&margin=15&ehld=true&diagramProfile=Standard&token={analysis_token}&resource=TOTAL&analysisProfile=Strosobar%2C%20Copper%2520Plus'
-    # image_url = f'https://reactome.org/ContentService/exporter/reaction/{pathway_id}.{image_format}?quality=10&flgInteractors=false&sel=&title=true&margin=15&diagramProfile=Standard&token={analysis_token}&analysisProfile=Strosobar&resource=TOTAL'
+    image_url = f'https://reactome.org/ContentService/exporter/diagram/{pathway_id}.{image_format}?quality=10&flgInteractors={interactors}&title=true&margin=15&ehld=true&diagramProfile=Modern&token={analysis_token}&resource=TOTAL&analysisProfile=Strosobar%2C%20Copper%2520Plus'
+
     image_response = requests.get(image_url)
     if image_response.status_code != 200:
         print(analysis_token)
