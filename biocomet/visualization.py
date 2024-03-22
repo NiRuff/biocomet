@@ -22,7 +22,7 @@ from collections import Counter
 import numpy as np
 import seaborn as sns
 import pandas as pd
-from IPython.display import Image, display
+from IPython.display import Image, display, HTML
 import requests
 import io
 import re
@@ -32,7 +32,6 @@ from io import BytesIO
 import json
 import os
 import math
-
 
 def plot_nv(G, sigPartition, min_comm_size=3, plot_dir='.', legend=True, kind='ArcPlots', show=True, background='transparent'):
 
@@ -280,7 +279,6 @@ def change_background_color(fig, ax, background):
             # Also set subplot backgrounds if needed
             ax.set_facecolor(new_background)
 
-
 def plotPPI(PPIGraph, full_network=False, show=True, background='transparent'):
     pathlib.Path(PPIGraph.plot_dir + "/PPI_networks/").mkdir(parents=True, exist_ok=True)
 
@@ -361,7 +359,6 @@ def plotPPI(PPIGraph, full_network=False, show=True, background='transparent'):
                 image = Image.open(file_name)
                 display(image)
             plt.close()
-
 
 def plotWordCloudsPPI(PPIGraph, categories='default', full_network = False, show=True, background='transparent', weightedSetCover=False):
     if type(categories) != str:
@@ -500,7 +497,6 @@ def plotWordCloudsPPI(PPIGraph, categories='default', full_network = False, show
         if show:
             plt.show()
         plt.close()
-
 
 def visualize_KEGG(pathway_id, gene_reg_dict, organism=9606, plot_dir=".", transparency=.5, community=None, show=True, background='transparent', suffix=''):
 
@@ -1175,7 +1171,6 @@ def visualize_Reactome(pathway_id, gene_reg_dict, organism=9606, plot_dir=".", c
         from IPython.display import Image, display
         display(Image(pathway_image_data))
 
-
 def fetch_reactome_pathway_image(gene_reg_dict, pathway_id, organism, image_format, interactors=False):
     # Step 1: Post gene expressions to get the analysis token
     analysis_url = f'https://reactome.org/AnalysisService/identifiers/?interactors=false&species={organism}&pageSize=20&page=1&sortBy=ENTITIES_PVALUE&order=ASC&resource=TOTAL&pValue=1&includeDisease=true'
@@ -1200,4 +1195,67 @@ def fetch_reactome_pathway_image(gene_reg_dict, pathway_id, organism, image_form
     # Return the image data for display
     return image_response.content
 
+def visualize_wikipathway(pathway_id, gene_reg_dict, plot_dir=".", community=None, show=True, suffix=''):
+
+    pathway_path = download_wikipathway_svg(pathway_id, plot_dir=plot_dir, community=community, suffix=suffix)
+
+    draw_on_pathway(pathway_path, gene_reg_dict)
+
+    def display_image_html(image_path):
+        from IPython.display import Image, display, HTML
+
+        image_html = f'<img src="{image_path}" alt="Image">'
+        display(HTML(image_html))
+
+    if show:
+        print(pathway_id)
+        display_image_html(pathway_path)
+
+def download_wikipathway_svg(pathway_id, plot_dir='.', community=None, suffix=''):
+
+    # ensure dir existence
+    pathlib.Path(plot_dir + "/WikiPathways/").mkdir(parents=True, exist_ok=True)
+    if community is not None:
+        pathlib.Path(plot_dir + "/WikiPathways/" + str(community) + "/").mkdir(parents=True, exist_ok=True)
+
+
+    # Download the PNG image
+    svg_url = f"https://www.wikipathways.org/wikipathways-assets/pathways/{pathway_id}/{pathway_id}.svg"
+    response = requests.get(svg_url)
+
+    if community is not None:  # if specified
+        file_name = plot_dir + '/WikiPathways/' + str(community) + '/' + pathway_id + suffix + '.svg'
+    else:  # if unspecified
+        file_name = plot_dir + "/WikiPathways/" + pathway_id + suffix + '.svg'
+
+    if response.status_code == 200:
+        with open(file_name, 'wb') as file:
+            file.write(response.content)
+        print(f"Image saved to {file_name}")
+    else:
+        print(f"Failed to download SVG. Status code: {response.status_code}")
+
+    return file_name
+
+def draw_on_pathway(pathway_path, gene_reg_dict):
+    # Load and parse the SVG file
+    tree = ET.parse(pathway_path)
+    root = tree.getroot()
+
+    # Iterate through each gene in the regulation dictionary
+    for gene, regulation in gene_reg_dict.items():
+        # Attempt to find all <a> elements, then filter them
+        for elem in root.findall('.//{http://www.w3.org/2000/svg}a'):
+            # Check if the 'class' attribute contains the gene name
+            elem_class = elem.get('class', '')
+            if f'HGNC_{gene}' in elem_class.split():
+                # Find the <rect> element to change its color
+                rect = elem.find('.//{http://www.w3.org/2000/svg}rect')
+                if rect is not None:
+                    # Set the fill color based on the gene's regulation value
+                    color = '#ff0000' if regulation > 0 else '#0000ff'
+                    rect.set('style', f'fill:{color};fill-opacity:0.5')
+
+    # Save the modified SVG file
+    tree.write(pathway_path)
 

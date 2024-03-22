@@ -6,7 +6,7 @@ import igraph as ig
 from .utils import download_and_load_dataframe
 from .community_detection import apply_leiden, apply_louvain
 from .functional_annotation import checkFuncSignificance, checkFuncSignificanceFullNetwork
-from .visualization import plot_nv, plotPPI, plotWordclouds, plotWordCloudsPPI, visualize_KEGG, plotRegNetworks, visualize_Reactome
+from .visualization import plot_nv, plotPPI, plotWordclouds, plotWordCloudsPPI, visualize_KEGG, plotRegNetworks, visualize_Reactome, visualize_wikipathway
 from .centrality import calcCentrality
 import os
 import urllib.request
@@ -17,7 +17,7 @@ class PPIGraph:
     def __init__(self, gene_list, reg_list=None, organism='9606', min_score=400, no_text=False, physical=False, auto_load=False, local_data=False, p_adj_cutoff = 0.05, min_comm_size=3):
         self.gene_list = pd.Series(gene_list)
         if len(self.gene_list) != len(set(self.gene_list)):
-            raise AttributeError('Dplicates detected in Gene list. Please remove duplicates.')
+            raise AttributeError('Duplicates detected in Gene list. Please remove duplicates.')
         self.reg_list = reg_list
         if self.reg_list is not None:
             if len(self.reg_list) == len(self.gene_list):
@@ -142,20 +142,21 @@ class PPIGraph:
                 else:
                     pref_name_to_orig[pref].append(orig)
 
-            # Prepare the new_gene_reg_dict with averaged values
-            new_gene_reg_dict = {}
-            for pref, originals in pref_name_to_orig.items():
-                # If multiple original names map to the same preferred name, average their values
-                if len(originals) > 1:
-                    avg_value = sum(self.gene_reg_dict[orig] for orig in originals) / len(originals)
-                    new_gene_reg_dict[pref] = avg_value
-                    print(
-                        f"Duplicate mapping found for preferred name '{pref}'. The regulation values for these cases will be averaged for further analysis.")
-                else:
-                    new_gene_reg_dict[pref] = self.gene_reg_dict[originals[0]]
+            if self.reg_list is not None:
+                # Prepare the new_gene_reg_dict with averaged values
+                new_gene_reg_dict = {}
+                for pref, originals in pref_name_to_orig.items():
+                    # If multiple original names map to the same preferred name, average their values
+                    if len(originals) > 1:
+                        avg_value = sum(self.gene_reg_dict[orig] for orig in originals) / len(originals)
+                        new_gene_reg_dict[pref] = avg_value
+                        print(
+                            f"Duplicate mapping found for preferred name '{pref}'. The regulation values for these cases will be averaged for further analysis.")
+                    else:
+                        new_gene_reg_dict[pref] = self.gene_reg_dict[originals[0]]
 
-            # Overwrite the old gene_reg_dict with the new, adjusted dictionary
-            self.gene_reg_dict = new_gene_reg_dict
+                # Overwrite the old gene_reg_dict with the new, adjusted dictionary
+                self.gene_reg_dict = new_gene_reg_dict
 
             self.gene_list = self.gene_list.replace(name_pref_name_dict)
 
@@ -563,6 +564,66 @@ class PPIGraph:
                         gene_reg_dict = {k:v for k,v in self.gene_reg_dict.items() if k in genes}
                         visualize_Reactome(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=self.organism,
                                        plot_dir=self.plot_dir, community=comm, show=show, background=background)
+
+    def plot_WikiPathway(self, pathway='all', community='all', show=True):
+        if self.partition == None:
+            print('Community detection necessary first. Starting community detection now with default parameters.')
+            self.community_detection()
+        if self.func_annotation == None:
+            print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
+            self.get_functional_annotation()
+
+        if self.reg_list is not None:
+            # Verify gene list and regulation list compatibility
+            if len(self.gene_list) != len(self.reg_list) or len(set(self.gene_list)) != len(self.gene_list):
+                raise ValueError("Gene list and regulation list must match in length and contain no duplicates.")
+
+            if self.gene_reg_dict is None:
+                # Create dictionary mapping gene_list to reg_list
+                self.gene_reg_dict = dict(zip(self.gene_list, self.reg_list))
+        else:
+            raise AttributeError("reg_list attribute not set. Please provide regulation list correpsonding to the gene list.")
+
+        # first check if specific pathway chosen
+        if pathway != 'all':
+            if community != 'all':  # specific community and pathway
+                df = self.func_annotation[community]  # just specific community's df
+                df_wikipathways = df[(df['category'] == 'WikiPathways') & (df['term'] == pathway)].copy()
+                if not df_wikipathways.empty():
+                    pathway_genes_dict = zip(df_wikipathways['term'], df_wikipathways['inputGenes'])
+                    for pathway_id, genes in pathway_genes_dict:
+                        gene_reg_dict = {k:v for k,v in self.gene_reg_dict.items() if k in genes}
+                        visualize_wikipathway(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict,
+                                       plot_dir=self.plot_dir, community=community, show=show)
+                else:
+                    print(pathway + ' not found in sig. results of community ' + community)
+
+            else:  # specific pathway in all communities
+                for comm, df in self.func_annotation.items():
+                    df_wikipathways = df[(df['category'] == 'WikiPathways') & (df['term'] == pathway)].copy()
+                    if not df_wikipathways.empty():
+                        pathway_genes_dict = zip(df_wikipathways['term'], df_wikipathways['inputGenes'])
+                        for pathway_id, genes in pathway_genes_dict:
+                            gene_reg_dict = {k:v for k,v in self.gene_reg_dict.items() if k in genes}
+                            visualize_wikipathway(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict,
+                                           plot_dir=self.plot_dir, community=comm, show=show)
+        else:
+            if community != 'all':  # implement all pathways of given community
+                df = self.func_annotation[community]  # just specific community's df
+                df_wikipathways = df[df['category'] == 'WikiPathways'].copy()
+                pathway_genes_dict = zip(df_wikipathways['term'], df_wikipathways['inputGenes'])
+                for pathway_id, genes in pathway_genes_dict:
+                    gene_reg_dict = {k: v for k, v in self.gene_reg_dict.items() if k in genes}
+                    visualize_wikipathway(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict,
+                                   plot_dir=self.plot_dir, community=community, show=show)
+            else: # all pathways all communities
+                for comm, df in self.func_annotation.items():
+                    df_wikipathways = df[df['category'] == 'WikiPathways'].copy()
+                    pathway_genes_dict = zip(df_wikipathways['term'], df_wikipathways['inputGenes'])
+                    for pathway_id, genes in pathway_genes_dict:
+                        gene_reg_dict = {k:v for k,v in self.gene_reg_dict.items() if k in genes}
+                        visualize_wikipathway(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict,
+                                       plot_dir=self.plot_dir, community=comm, show=show)
 
     def plot_KEGG(self, pathway='all', community='all', show=True, transparency=.5, background='transparent'):
 

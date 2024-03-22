@@ -41,6 +41,9 @@ sc_mathys2019_eAD_lAD = LazyDataset(citation_message_mathys, load_sc_mathys2019_
 sc_mathys2019_ctrl_AD = LazyDataset(citation_message_mathys, load_sc_mathys2019_ctrl_AD)
 sc_mathys2019_ctrl_eAD = LazyDataset(citation_message_mathys, load_sc_mathys2019_ctrl_eAD)
 
+# todo: check long_df again:
+# BTBD8 appears twice for AD - maybe something went wrong before matching with most recent gene IDs
+
 meta_ruffini2022_NDD = LazyDataset(citation_message_ruffini_2022, load_meta_ruffini2022_NDD)
 genes_ruffini2020_NDD = LazyDataset(citation_message_ruffini_2020, load_genes_ruffini2020_NDD)
 
