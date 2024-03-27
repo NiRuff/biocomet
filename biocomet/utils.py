@@ -20,8 +20,6 @@ def updateGeneSymbolsHuman(geneSymbols):
     # Path to the tsv file (assuming it's in the same directory)
     dict_path = os.path.join(os.path.dirname(__file__), 'data', 'HGNC_03252024_gene_symbol_mapping.json')
 
-    
-
     # Read mapping data as DataFrame
     try:
         gene_hgnc_df = pd.read_csv(dict_path, sep='\t', index_col=0)

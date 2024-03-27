@@ -8,7 +8,7 @@ setup(
     description='A brief description of the biocomet package',
     url='https://github.com/NiRuff/COMET/tree/master_kegg',
     packages=find_packages(),
-    package_data={'biocomet': ['data/*.json', 'data/*.tsv']},
+    package_data={'biocomet': ['data/*.json', 'data/*.tsv', 'data/*.gz']},
     classifiers=[
         'Programming Language :: Python :: 3',
         'Operating System :: OS Independent',

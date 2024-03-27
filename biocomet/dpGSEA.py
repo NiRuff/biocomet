@@ -14,6 +14,11 @@ import numpy as np
 import random
 import os
 import math
+import time
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+import json
+from collections import defaultdict
+import gzip
 
 '''
 A drug-gene target enrichment technique utilizing a modified GSEA approach. 
@@ -30,15 +35,54 @@ dpGSEA enriches on a proto-matrix based on a user-defined cutoff (these matrices
 
 '''
 
+# todo: when computing ES - also compute -ES by label switch to report both: sig for case/ctrl and ctrl/case
+# same goes for TCS
+# check Fig 2 here:https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-020-03929-0#Sec3
+
+
+def reduceInput(drug_df, gene_list, organism, source, min_genes=1):
+    dict_path = os.path.join(os.path.dirname(__file__), 'data', 'drug_gene_mapping_corrected.json.gz')
+
+    # Load the dictionary from the JSON file
+    with gzip.open(dict_path, 'rt', encoding='utf-8') as fp:
+        loaded_dict = json.load(fp)
+
+    # Prepare keys to check in the dictionary
+    keys_to_check = [f"{organism}_{source}"]
+    if f"{organism}_{source}" not in loaded_dict:
+        print(f"{keys_to_check} not found. Using all organisms and sources available.")
+        keys_to_check = list(loaded_dict.keys())  # Use all keys if specific one is not found
+
+    print("Keys to check:", keys_to_check)
+
+    # Initialize a dictionary to collect drug IDs with a set to track unique genes
+    drug_id_to_genes = defaultdict(set)
+    for key in keys_to_check:
+        for gene in gene_list:
+            if gene in loaded_dict[key]:
+                for drug_id in loaded_dict[key][gene]:
+                    drug_id_to_genes[drug_id].add(gene)  # Add gene to the set of unique genes for this drug_id
+
+    # Now, filter drug IDs by min_genes, checking the length of the set of genes
+    filtered_drug_ids = [drug_id for drug_id, genes in drug_id_to_genes.items() if len(genes) >= min_genes]
+    #print("Filtered Drug IDs based on unique gene count:", filtered_drug_ids)
+
+    #print([(drug_id, genes) for drug_id, genes in drug_id_to_genes.items() if len(genes) >= min_genes])
+
+    # Subset the drug_df for only those entries that show any of these IDs in the 'drug' column
+    reduced_drug_df = drug_df[drug_df['drug'].isin(filtered_drug_ids)]
+
+    return reduced_drug_df
+
+
 # Wrapper function
 def dp_GSEA(gene_list, reg_list, sig_list, iterations=1000,
-            seed=None, matchProfile=False,
+            seed=None, matchProfile=False, organism=9606, min_genes=1,
             drug_gene_reg=None, drug_ref=None, FDR_treshold=0.05,
             low_values_significant=None, source='validated'):
 
     print('dpGSEA was first implemented by Fang et al., 2021.'
           ' Please cite https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-020-03929-0')
-
 
     if low_values_significant is None:
         # Modify sig_list if necessary. If interpreted as p, lower is better. Otherwise, higher is better
@@ -57,17 +101,45 @@ def dp_GSEA(gene_list, reg_list, sig_list, iterations=1000,
 
     # check if drug_gene_reg is == None, if yes, drug_gene_reg is defaulted to single-drug-perturbations of mayaanlab
     if drug_gene_reg == None:
-        drug_gene_reg = pd.read_csv(os.path.join(os.path.dirname(__file__), 'data', 'single_drug_perturbations.tsv'), sep="\t", index_col=0)
+
+        print('File for drug gene associations defaults to the single drug perturbations'
+              ' provided by Wang et al., 2016. Pelase cite https://doi.org/10.1038/ncomms12846')
+
+        drug_gene_reg = pd.read_csv(os.path.join(os.path.dirname(__file__), 'data', 'single_drug_perturbations.tsv.gz'),
+                                    sep="\t", index_col=0, compression='gzip')
+
+        print('Initial number of drug gene associations: ', drug_gene_reg.shape[0])
 
         if source == 'validated':
             drug_gene_reg = drug_gene_reg[~drug_gene_reg['drug'].str.startswith('drug:P')]
+            print('Filtering for source. Remaining number of drug gene associations: ', drug_gene_reg.shape[0])
+        elif source == 'predicted':
+            drug_gene_reg = drug_gene_reg[drug_gene_reg['drug'].str.startswith('drug:P')]
+            print('Filtering for source. Remaining number of drug gene associations: ', drug_gene_reg.shape[0])
+        else:
+            print('source parameter invalid or not set. Keeping all entries - validated and predicted ones')
 
-        print('File for drug gene associations defaults the single drug perturbations'
-              ' provided by Wang et al., 2016. Pelase cite https://doi.org/10.1038/ncomms12846')
         if drug_ref == None:
             # set corresponding drug_ref
             drug_ref = pd.read_csv(os.path.join(os.path.dirname(__file__), 'data', 'drug_ref.tsv'), sep="\t", index_col=0)
 
+        if (organism == 9606) or (organism == '9606'):
+            organism = 'human'
+        elif (organism == 10092) or (organism == '10092'):
+            organism = 'mouse'
+        elif (organism == 10116) or (organism == '10116'):
+            organism = 'rat'
+
+        if organism != None:
+            org_drug_ids = drug_ref[drug_ref['organism']==organism].id
+            drug_gene_reg = drug_gene_reg[drug_gene_reg['drug'].isin(org_drug_ids)]
+            print('Filtering for organism. Remaining number of drug gene associations: ', drug_gene_reg.shape[0])
+
+        # subsample to exclude all drug that are not related to at least x genes
+        drug_gene_reg = reduceInput(drug_gene_reg, gene_list, organism, source, min_genes=min_genes)
+        print('Filtering out drugs with less than'
+              ' ' + str(min_genes) + ' associated genes. '
+                                     'Remaining number of drug gene associations: ', drug_gene_reg.shape[0])
 
     # somehow check output file name or otherwise return in the end the results and set them as attributes for the PPI object
     outputFileName = './results.tsv'
@@ -92,6 +164,8 @@ def dp_GSEA(gene_list, reg_list, sig_list, iterations=1000,
     print('Writing results...')
     results.to_csv(path_or_buf=outputFileName, index=False, sep='\t')
 
+    return results
+
 
 def tablePreprocessing(gene_list, reg_list, sig_list, drug_gene_reg):
 
@@ -106,12 +180,8 @@ def tablePreprocessing(gene_list, reg_list, sig_list, drug_gene_reg):
     # assumed to have the following columns: drug, gene, drug_up
     drugTable = drug_gene_reg
 
-    # print col names of finished drug and gene tables - both contain gene to match on?
-    print(geneTable.columns, drugTable.columns)
-
     # Merges the columns on genes based on the drugRef, remove any NAs generated from merge and ranks by sig
     rankTable = pd.merge(drugTable, geneTable, on='gene', how='left')
-    print(rankTable)
 
     rankTable = rankTable[rankTable['reg'].notna()]
     rankTable = rankTable.sort_values(by='sig', ascending=False).reset_index()
@@ -160,25 +230,39 @@ class dpGSEA:
             return None
 
     def getNullIndexes(self, drug):
-        iterations = self.iterations
         try:
             resampleNum = len(self.getDrugIndexes(drug))
-            if resampleNum != 0:
-                return np.array(
-                    [np.random.choice(self.indexLen, resampleNum, replace=False) for _ in range(iterations)])
-            else:
+            if resampleNum == 0:
                 return None
-        except:
+
+            # Pre-allocate the array for performance
+            result = np.empty((self.iterations, resampleNum), dtype=int)
+
+            # Generate samples for each iteration
+            for i in range(self.iterations):
+                result[i] = np.random.choice(self.indexLen, resampleNum, replace=False)
+
+            return result
+        except Exception as e:
+            print(f"Error encountered: {e}")
             return None
 
-    def getMaxDeviations(self, index, getTable=False):
-        if index is not None:
-            if len(index.shape) == 1:
-                # Assigns variable to instance rank table
-                rankTable = self.rankTable
 
-                # Finds total sum of for brownian bridge
-                totalSum = sum(rankTable.sig)
+    def getMaxDeviations(self, index, getTable=False):
+
+        np.set_printoptions(threshold=10)
+
+        if index is None:
+            raise TypeError('Provided index is None')
+
+        else:
+            # Assigns variable to instance rank table
+            rankTable = self.rankTable
+
+            # Finds total sum of for brownian bridge
+            totalSum = sum(rankTable.sig)
+
+            if len(index.shape) == 1:
 
                 # Calculates the total sum for hits
                 hitSum = sum(rankTable.sig[index])
@@ -204,25 +288,36 @@ class dpGSEA:
                             'maxDeviationIndex': 1 - (maxDeviationIndex / self.indexLen)}
 
             else:
-                # Assigns variable to instance rank table
-                rankTable = self.rankTable
-                iterations = self.iterations
-                # Iterate through all indexes
-                totalSum = sum(rankTable.sig)
 
+                # non loop approach
                 maxDeviationList = np.array([])
                 maxDeviationIndexList = np.array([])
 
-                for i in index:
+                # Add a column for group IDs, initializing with -1
+                rankTable['group_id'] = -1
+
+                # Assign group IDs based on 'index'
+                for group_id, indices in enumerate(index):
+                    rankTable.loc[indices, 'group_id'] = group_id
+
+                # Calculate 'hitSum' for each group
+                grouped = rankTable.groupby('group_id')
+                rankTable['hitSum'] = grouped['sig'].transform('sum')
+
+                # Iterate over each group to update steps and calculate max deviations
+                for group_id, group_data in rankTable.groupby('group_id'):
+                    if group_id == -1:  # Skip if group_id was not assigned
+                        continue
+
                     # Calculates the total sum for hits
-                    hitSum = sum(rankTable.sig[n] for n in i)
+                    hitSum = sum(group_data['sig'])
 
-                    # Negative step for "misses" weighted by the T-statistic
-                    rankTable['step'] = -1 * rankTable.sig / (totalSum - hitSum)
+                    # Calculate "miss" step values within this group context
+                    rankTable.loc[:, 'step'] = -1 * rankTable.loc[:, 'sig'] / (
+                                totalSum - hitSum)
 
-                    # Calculates the "hit" steps (the comprehension loop will save time on smaller group sizes)
-                    rankTable.loc[i, 'step'] = [rankTable.sig[n] / hitSum for n in
-                                                i]  # faster for shorter <200 lists
+                    # Update "hit" steps for this group
+                    rankTable.loc[group_data.index, 'step'] = group_data['sig'] / hitSum
 
                     # Calculates cumulative sum and finds max deviation and index
                     cumSum = np.cumsum(rankTable.step)
@@ -277,67 +372,77 @@ class dpGSEA:
                 'TCS_p': tcp,
                 'genes': genes}
 
+    def process_drug(self, drug):
+        # This method encapsulates the processing of a single drug
+        # Adapted to work with parallel execution
+        drugIndex = self.getDrugIndexes(drug)
+
+        if drugIndex is None or len(drugIndex) == 0:
+            return None  # Indicate that this drug was skipped
+
+        drugMaxDev = self.getMaxDeviations(drugIndex)
+        nullKey = len(drugIndex)
+
+        if nullKey not in self.nullDistDict:
+            nullIndex = self.getNullIndexes(drug)
+            nullMaxDev = self.getMaxDeviations(nullIndex)
+            self.nullDistDict[nullKey] = nullMaxDev
+        else:
+            nullMaxDev = self.nullDistDict[nullKey]
+            nullIndex = None  # Or appropriate dummy value
+
+        stats = self.getStats(drug, drugIndex=drugIndex, drugMaxDev=drugMaxDev,
+                              nullIndex=nullIndex, nullMaxDev=nullMaxDev)
+        return stats, nullMaxDev
+
     def resultsTable(self):
         drugList = self.drugList()
-        drugListLen = len(drugList)
-        iterations = self.iterations
+        self.nullDistDict = {}  # Shared state, accessed read-only in parallel tasks
 
-        resultsTable = pd.DataFrame(columns=['drug', 'ES', 'NES', 'ES_p', 'TCS', 'NTCS', 'TCS_p', 'genes'])
-        nullDistDict = {}
+        max_workers = os.cpu_count() // 3  # Use half of the available CPUs
+        print(f"Parallelization started. Using up to {max_workers} processes.")
+
+        results = []
         nullNESDist = []
         nullNTCSDist = []
 
-        drugCounter = 1
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Map each drug to a future object
+            future_to_drug = {executor.submit(self.process_drug, drug): drug for drug in drugList}
 
-        # Initialize an empty list to collect DataFrames or Series to append
-        rows_to_append = []
-        for drug in drugList:
-            print('DxCL: ' + str(drugCounter) + ' of ' + str(drugListLen) + ', ' + drug)
-            drugCounter += 1
-            drugIndex = self.getDrugIndexes(drug)
+            completed = 0
+            for future in as_completed(future_to_drug):
+                drug = future_to_drug[future]
+                try:
+                    result = future.result()
+                    if result:
+                        drugStats, nullMaxDev = result
+                        results.append(drugStats)
+                        nullNESDist.extend(list(nullMaxDev['maxDeviationNorm']))
+                        nullNTCSDist.extend(list(nullMaxDev['maxDeviationIndexNorm']))
+                except Exception as exc:
+                    print(f"{drug} generated an exception: {exc}")
+                finally:
+                    completed += 1
+                    print(f"Completed {completed}/{len(drugList)} drugs")
 
-            if drugIndex is not None:
-                drugMaxDev = self.getMaxDeviations(drugIndex)
-                nullKey = len(drugIndex)
+        # Construct the results table from the accumulated results
+        resultsTable = pd.DataFrame(results)
 
-                if nullKey in nullDistDict.keys():
-                    nullMaxDev = nullDistDict[nullKey]
+        resultsTable = resultsTable.dropna(axis=1, how='all')  # Filter out all-NA columns if needed
 
-                else:
-                    nullIndex = self.getNullIndexes(drug)
-                    nullMaxDev = self.getMaxDeviations(nullIndex)
-                    nullDistDict[nullKey] = nullMaxDev
-
-                drugStats = self.getStats(drug, drugIndex=drugIndex, drugMaxDev=drugMaxDev, nullIndex=nullIndex,
-                                          nullMaxDev=nullMaxDev)
-                # Add drugStats to the list
-                rows_to_append.append(pd.DataFrame(drugStats))
-
-                # Assuming nullMaxDev is a dictionary or DataFrame you're working with in your loop
-                nullNESDist = nullNESDist + list(nullMaxDev['maxDeviationNorm'])
-                nullNTCSDist = nullNTCSDist + list(nullMaxDev['maxDeviationIndexNorm'])
-
-        # Filter out all-NA columns from each DataFrame in rows_to_append before concatenation
-        rows_to_append_filtered = [df.dropna(axis=1, how='all') for df in rows_to_append]
-
-        # Now concatenate resultsTable with the filtered list
-        resultsTable = pd.concat([resultsTable] + rows_to_append_filtered, ignore_index=True)
-
+        # Inspect the structure of the filtered DataFrame
+        print("Shape of the results table:", resultsTable.shape)
+        print("First few rows of the results table:", resultsTable.head())
 
         print('Calculating FDRs...')
 
-        # Calculate the FDR for NES and NTCS based on the null distributions
+        # Calculate FDRs similarly to your existing logic
         for score_type, null_dist in [('NES', nullNESDist), ('NTCS', nullNTCSDist)]:
             fdr_column = f'{score_type}_FDR'
-
-            # Calculate the FDR values
-            # For each observed score, calculate the proportion of null distribution scores that are greater or equal
             resultsTable[fdr_column] = resultsTable[score_type].apply(
                 lambda x: np.mean([null_score >= x for null_score in null_dist])
             )
-
-        # After this, values in NES_FDR and NTCS_FDR columns represent the FDR for each drug's NES and NTCS, respectively.
-        # Scores resulting in FDR values below 0.05 can be considered significant.
 
         return resultsTable
 
