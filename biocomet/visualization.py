@@ -6,6 +6,8 @@ warnings.filterwarnings('ignore', message="No data for colormapping provided via
 import matplotlib as mpl
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap, Normalize
+
 import matplotlib.colors as mcolors
 from matplotlib.lines import Line2D
 import matplotlib.patches as mpatches
@@ -20,7 +22,7 @@ from collections import Counter
 import numpy as np
 import seaborn as sns
 import pandas as pd
-from IPython.display import Image, display
+from IPython.display import Image, display, HTML
 import requests
 import io
 import re
@@ -29,7 +31,7 @@ from PIL import Image, ImageDraw
 from io import BytesIO
 import json
 import os
-
+import math
 
 def plot_nv(G, sigPartition, min_comm_size=3, plot_dir='.', legend=True, kind='ArcPlots', show=True, background='transparent'):
 
@@ -63,15 +65,23 @@ def plot_nv(G, sigPartition, min_comm_size=3, plot_dir='.', legend=True, kind='A
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
+    # Step 1: Check if any edge has a weight > 1
+    weight_greater_than_one = any(edge_data.get('weight', 0) > 1 for _, _, edge_data in G_trunc.edges(data=True))
+
+    # Step 2: If no edge has weight > 1, multiply all weights by 1000
+    if not weight_greater_than_one:
+        for u, v, edge_data in G_trunc.edges(data=True):
+            edge_data['weight'] = edge_data.get('weight', 0) * 1000
+            # Update the edge with the new weight
+            G_trunc[u][v]['weight'] = edge_data['weight']
+
     if kind == 'ArcPlots':
         g = nv.arc(G_trunc, node_color_by="community", group_by="community", edge_color_by="weight", edge_alpha_by="weight")
-
         nv.annotate.arc_group(G_trunc, group_by="community")
 
     elif kind == 'CircosPlots':
         g = nv.circos(G_trunc, node_color_by="community", group_by="community", edge_color_by="weight",
                       edge_alpha_by="weight")
-
         nv.annotate.circos_group(G_trunc, group_by="community")
 
     g.get_figure().set_size_inches(10, 10)
@@ -110,7 +120,62 @@ def plot_nv(G, sigPartition, min_comm_size=3, plot_dir='.', legend=True, kind='A
 
 
 
-def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True, background='transparent'):
+def weighted_set_cover(df, topN=None, category=None, description=None):
+  """
+  Performs a greedy weighted set cover algorithm on a DataFrame and returns a reduced DataFrame.
+
+  Args:
+      df (pd.DataFrame): DataFrame with columns 'inputGenes', 'category', and 'fdr' (p-value).
+                         'description' column is optional.
+      topN (int, optional): The desired number of pathways to return. Defaults to None (all pathways).
+      category (str, optional): Filter pathways by a specific category value.
+      description (str, optional): Filter pathways by a specific description value (partial match).
+
+  Returns:
+      pd.DataFrame: Reduced DataFrame containing only the selected pathways.
+  """
+
+  # Function to process a single pathway for weighted set cover
+  def process_set(genes, fdr):
+    cost = -math.log10(fdr)  # Cost function based on negative log p-value
+    return cost
+
+  # Prepare data for weighted set cover
+  all_genes = set(df["inputGenes"].sum())  # Set of all unique genes
+  costs = -np.log10(df["fdr"])  # Calculate costs based on negative log p-value
+
+  # Filter DataFrame if category or description is specified
+  if category:
+    df = df[df["category"] == category]
+  if description:
+    df = df[df["description"].str.contains(description)]
+
+  # Initialize variables for greedy algorithm
+  selected_genes = set()
+  cur_res = []  # List to store selected pathway indices
+  remain = len(all_genes)  # Number of uncovered genes
+
+  # Iterate through each row (pathway) in the DataFrame
+  for idx, row in df.iterrows():
+    genes = set(row["inputGenes"])
+    fdr = row["fdr"]
+
+    # Check if all genes are covered or limit reached
+    if remain == 0 or (topN is not None and len(cur_res) >= topN):
+      break
+
+    marginal_gain = process_set(genes, fdr)
+
+    # Update only if marginal gain is positive
+    if marginal_gain > 0:
+      selected_genes.update(genes)
+      remain -= len(genes)
+      cur_res.append(idx)  # Store row index (not original index)
+
+  # Return the reduced DataFrame based on row indices
+  return df.loc[cur_res]
+
+def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True, background='transparent', weightedSetCover=False):
     if not isinstance(categories, str):
         pass
     elif categories.lower() == 'pathways':
@@ -141,6 +206,9 @@ def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True, ba
     for commNum, df in funcAnnots.items():
         if categories != 'all':
             df = df[df['category'].isin(categories)]
+
+        if weightedSetCover:
+            df = weighted_set_cover(df)
 
         # Create a word cloud
         if background == 'transparent':
@@ -210,7 +278,6 @@ def change_background_color(fig, ax, background):
             fig.patch.set_facecolor(new_background)
             # Also set subplot backgrounds if needed
             ax.set_facecolor(new_background)
-
 
 def plotPPI(PPIGraph, full_network=False, show=True, background='transparent'):
     pathlib.Path(PPIGraph.plot_dir + "/PPI_networks/").mkdir(parents=True, exist_ok=True)
@@ -293,8 +360,7 @@ def plotPPI(PPIGraph, full_network=False, show=True, background='transparent'):
                 display(image)
             plt.close()
 
-
-def plotWordCloudsPPI(PPIGraph, categories='default', full_network = False, show=True, background='transparent'):
+def plotWordCloudsPPI(PPIGraph, categories='default', full_network = False, show=True, background='transparent', weightedSetCover=False):
     if type(categories) != str:
         pass
     elif categories.lower() == 'pathways':
@@ -359,6 +425,9 @@ def plotWordCloudsPPI(PPIGraph, categories='default', full_network = False, show
             continue
 
         df = df[df['category'].isin(categories)]
+
+        if weightedSetCover:
+            df = weighted_set_cover(df)
 
         # Create a word cloud
         if background == 'transparent':
@@ -429,8 +498,7 @@ def plotWordCloudsPPI(PPIGraph, categories='default', full_network = False, show
             plt.show()
         plt.close()
 
-
-def visualize_KEGG(pathway_id, gene_reg_dict, organism, plot_dir=".", transparency=.5, community=None, show=True, background='transparent', suffix=''):
+def visualize_KEGG(pathway_id, gene_reg_dict, organism=9606, plot_dir=".", transparency=.5, community=None, show=True, background='transparent', suffix=''):
 
     if organism == 'human':
         organism = 9606
@@ -482,6 +550,46 @@ def visualize_KEGG(pathway_id, gene_reg_dict, organism, plot_dir=".", transparen
 
     annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=plot_dir, transparency=transparency, community=community, show=show, background=background, suffix=suffix)
 
+def create_non_linear_colormap(non_linear_region = 0.0005, intensity_limit=0.25):
+    """
+    Creates a non-linear colormap that mimics 'coolwarm' with adjustments.
+
+    Parameters:
+    - intensity_limit: Adjusts the steepness of the slope around ±0.01.
+
+    Returns:
+    - A matplotlib colormap instance.
+    """
+
+    # Define the non-linear transformation centered at 0
+    def non_linear_transform(val, non_linear_region):
+        non_linear_region = non_linear_region
+        if abs(val) < non_linear_region:
+            return 0.5 * intensity_limit * (val / non_linear_region) + 0.5
+        else:
+            return (0.5 - intensity_limit) * (abs(val) - non_linear_region) / (0.5 - non_linear_region) * np.sign(
+                val) + 0.5 + intensity_limit * np.sign(val)
+
+    # Create the 'coolwarm' colormap
+    coolwarm = plt.get_cmap('coolwarm')
+
+    # Normalize the input for the colormap definition
+    def normalize(value, start, end):
+        return (value - start) / (end - start)
+
+    # Generate a custom colormap by applying the non-linear transformation
+    cdict = {'red': [], 'green': [], 'blue': []}
+    # Ensure the loop runs from 0 to 1
+    for x in np.linspace(0, 1, 256):  # Corrected normalization
+        # Apply transformation within normalized -1 to 1 space, then adjust for colormap
+        transformed_x = non_linear_transform(x * 2 - 1, non_linear_region)  # Adjust to -1 to 1 space
+        r, g, b, _ = coolwarm(transformed_x)
+        cdict['red'].append((x, r, r))
+        cdict['green'].append((x, g, g))
+        cdict['blue'].append((x, b, b))
+
+    # Create and return the non-linear colormap
+    return LinearSegmentedColormap('Custom_Coolwarm', segmentdata=cdict, N=256)
 
 def annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=".", transparency=.5, community=None, show=True, background='transparent', suffix=''):
 
@@ -514,8 +622,10 @@ def annotate_genes_on_pathway(pathway_id, kegg_reg_dict, plot_dir=".", transpare
     # Adjust min_expr and max_expr to be le/ge than 0
     min_expr = min(min_expr, -1)
     max_expr = max(max_expr, +1)
+
+    # Create the custom colormap and normalization
+    cmap = create_non_linear_colormap()
     norm = mcolors.TwoSlopeNorm(vmin=min_expr, vcenter=0, vmax=max_expr)
-    cmap = plt.get_cmap('coolwarm')
 
     for graphic_id, (positional_info, kegg_ids) in graphics_info.items():
         x, y, w, h = positional_info['x'], positional_info['y'], positional_info['width'], positional_info['height']
@@ -598,7 +708,6 @@ def fetch_pathway_kgml(pathway_id):
         print(f"Failed to fetch KGML for pathway {pathway_id}")
         return None
 
-
 def parse_kegg_ids_from_kgml_v2(kgml_content):
     root = ET.fromstring(kgml_content)
     graphics_dict = {}
@@ -652,7 +761,6 @@ def convert_gene_symbols_to_uniprot_mygene(gene_symbols, organism='9606'):
             gene_to_uniprot[gene_symbol] = None
     return gene_to_uniprot
 
-
 def uniprot_to_kegg_dict(uniprot_ids):
     kegg_to_uniprots = {}  # Dictionary to store KEGG ID to UniProt IDs mappings
     for uniprot_id in uniprot_ids:
@@ -671,7 +779,7 @@ def uniprot_to_kegg_dict(uniprot_ids):
             print(f"Failed to fetch data for UniProt ID {uniprot_id}. Status code: {response.status_code}")
     return kegg_to_uniprots
 
-def scale_parameters_based_on_network_size(G, base_node_size=1500, base_font_size=8, base_edge_width=4, base_fig_size=12):
+def scale_parameters_based_on_network_size(G, base_font_size=8, base_fig_size=12):
     """
     Adjust node size, font size, and edge width based on the number of nodes in the graph.
 
@@ -684,15 +792,14 @@ def scale_parameters_based_on_network_size(G, base_node_size=1500, base_font_siz
     num_nodes = len(G.nodes)
 
     # Define scaling factors - these values are adjustable based on desired appearance
-    scale_factor = 1.0
     if num_nodes < 50:
-        scale_factor = 0.8
+        scale_factor = 0.85
     elif num_nodes < 100:
-        scale_factor = 0.6
+        scale_factor = 0.75
     elif num_nodes < 150:
-        scale_factor = 0.4
+        scale_factor = 0.55
     elif num_nodes < 250:
-        scale_factor = 0.3
+        scale_factor = 0.35
     else:
         scale_factor = 0.25
 
@@ -752,13 +859,13 @@ def plotRegNetworks(G, partition, centrality, plot_dir=".", full_network=False, 
 
             # Normalize centrality values for visualization
             max_centrality = max(centrality_values.values())
-            normalized_centrality = {node: 750 + centrality / max_centrality * 1250 for node, centrality in
+            normalized_centrality = {node: 1000 + centrality / max_centrality * 1500 for node, centrality in
                                      centrality_values.items()}
 
             # Use normalized centrality for node size
             node_sizes = [normalized_centrality[node] for node in G.nodes]
         else:
-            node_sizes = [1500 for node in G.nodes]
+            node_sizes = [2000 for node in G.nodes]
 
         # Custom function to draw halos
         def draw_halos(pos, node_sizes, node_alphas, ax):
@@ -925,13 +1032,13 @@ def plotRegNetworks(G, partition, centrality, plot_dir=".", full_network=False, 
 
                 # Normalize centrality values for visualization
                 max_centrality = max(centrality_values.values())
-                normalized_centrality = {node: 750 + centrality / max_centrality * 1250 for node, centrality in
+                normalized_centrality = {node: 1000 + centrality / max_centrality * 1500 for node, centrality in
                                          centrality_values.items()}
 
                 # Use normalized centrality for node size
                 node_sizes = [normalized_centrality[node] for node in G_sub.nodes]
             else:
-                node_sizes = [1500 for node in G_sub.nodes]
+                node_sizes = [2000 for node in G_sub.nodes]
 
             # Custom function to draw halos
             def draw_halos(pos, node_sizes, node_alphas, ax):
@@ -1033,3 +1140,122 @@ def plotRegNetworks(G, partition, centrality, plot_dir=".", full_network=False, 
             if show == True:
                 plt.show()
             plt.close()
+
+def visualize_Reactome(pathway_id, gene_reg_dict, organism=9606, plot_dir=".", community=None, background='transparent', show=True, suffix=''):
+
+    # ensure dir existence
+    pathlib.Path(plot_dir + "/Reactome/").mkdir(parents=True, exist_ok=True)
+    if community is not None:
+        pathlib.Path(plot_dir + "/Reactome/" + str(community) + "/").mkdir(parents=True, exist_ok=True)
+
+    if organism == 'human':
+        organism = 9606
+    elif organism == 'mouse':
+        organism = 10090
+
+    # Fetch the pathway image
+    pathway_image_data = fetch_reactome_pathway_image(pathway_id=pathway_id, gene_reg_dict=gene_reg_dict, organism=organism, image_format='PNG')
+
+    if community is not None:  # if specified
+        file_name = plot_dir + '/Reactome/' + str(community) + '/' + pathway_id + suffix + '.png'
+    else:  # if unspecified
+        file_name = plot_dir + "/Reactome/" + pathway_id + suffix + '.png'
+
+    with open(file_name, 'wb') as file:
+        file.write(pathway_image_data)
+
+    print(f"Image saved to {file_name}")
+
+    if show:
+        print(pathway_id)
+        from IPython.display import Image, display
+        display(Image(pathway_image_data))
+
+def fetch_reactome_pathway_image(gene_reg_dict, pathway_id, organism, image_format, interactors=False):
+    # Step 1: Post gene expressions to get the analysis token
+    analysis_url = f'https://reactome.org/AnalysisService/identifiers/?interactors=false&species={organism}&pageSize=20&page=1&sortBy=ENTITIES_PVALUE&order=ASC&resource=TOTAL&pValue=1&includeDisease=true'
+    gene_data = '\n'.join([f'{gene}, {exp}' for gene, exp in gene_reg_dict.items()])
+    headers = {
+        'Content-Type': 'text/plain'
+    }
+    response = requests.post(analysis_url, headers=headers, data=gene_data)
+    if response.status_code != 200:
+        raise ValueError(f"Failed to post gene expressions. Status code: {response.status_code}")
+    analysis_token = response.json()['summary']['token']
+
+    # Step 2: Fetch the pathway diagram image using the token
+    image_url = f'https://reactome.org/ContentService/exporter/diagram/{pathway_id}.{image_format}?quality=10&flgInteractors={interactors}&title=true&margin=15&ehld=true&diagramProfile=Modern&token={analysis_token}&resource=TOTAL&analysisProfile=Strosobar%2C%20Copper%2520Plus'
+
+    image_response = requests.get(image_url)
+    if image_response.status_code != 200:
+        print(analysis_token)
+        print(pathway_id)
+        raise ValueError(f"Failed to fetch pathway image. Status code: {image_response.status_code}")
+
+    # Return the image data for display
+    return image_response.content
+
+def visualize_wikipathway(pathway_id, gene_reg_dict, plot_dir=".", community=None, show=True, suffix=''):
+
+    pathway_path = download_wikipathway_svg(pathway_id, plot_dir=plot_dir, community=community, suffix=suffix)
+
+    draw_on_pathway(pathway_path, gene_reg_dict)
+
+    def display_image_html(image_path):
+        from IPython.display import Image, display, HTML
+
+        image_html = f'<img src="{image_path}" alt="Image">'
+        display(HTML(image_html))
+
+    if show:
+        print(pathway_id)
+        display_image_html(pathway_path)
+
+def download_wikipathway_svg(pathway_id, plot_dir='.', community=None, suffix=''):
+
+    # ensure dir existence
+    pathlib.Path(plot_dir + "/WikiPathways/").mkdir(parents=True, exist_ok=True)
+    if community is not None:
+        pathlib.Path(plot_dir + "/WikiPathways/" + str(community) + "/").mkdir(parents=True, exist_ok=True)
+
+
+    # Download the PNG image
+    svg_url = f"https://www.wikipathways.org/wikipathways-assets/pathways/{pathway_id}/{pathway_id}.svg"
+    response = requests.get(svg_url)
+
+    if community is not None:  # if specified
+        file_name = plot_dir + '/WikiPathways/' + str(community) + '/' + pathway_id + suffix + '.svg'
+    else:  # if unspecified
+        file_name = plot_dir + "/WikiPathways/" + pathway_id + suffix + '.svg'
+
+    if response.status_code == 200:
+        with open(file_name, 'wb') as file:
+            file.write(response.content)
+        print(f"Image saved to {file_name}")
+    else:
+        print(f"Failed to download SVG. Status code: {response.status_code}")
+
+    return file_name
+
+def draw_on_pathway(pathway_path, gene_reg_dict):
+    # Load and parse the SVG file
+    tree = ET.parse(pathway_path)
+    root = tree.getroot()
+
+    # Iterate through each gene in the regulation dictionary
+    for gene, regulation in gene_reg_dict.items():
+        # Attempt to find all <a> elements, then filter them
+        for elem in root.findall('.//{http://www.w3.org/2000/svg}a'):
+            # Check if the 'class' attribute contains the gene name
+            elem_class = elem.get('class', '')
+            if f'HGNC_{gene}' in elem_class.split():
+                # Find the <rect> element to change its color
+                rect = elem.find('.//{http://www.w3.org/2000/svg}rect')
+                if rect is not None:
+                    # Set the fill color based on the gene's regulation value
+                    color = '#ff0000' if regulation > 0 else '#0000ff'
+                    rect.set('style', f'fill:{color};fill-opacity:0.5')
+
+    # Save the modified SVG file
+    tree.write(pathway_path)
+
