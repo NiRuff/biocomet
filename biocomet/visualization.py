@@ -321,59 +321,52 @@ def plot_circos(G, sigPartition, min_comm_size=3, plot_dir='.', legend=True, sho
 
 
 def weighted_set_cover(df, topN=None, category=None, description=None):
-  """
-  Performs a greedy weighted set cover algorithm on a DataFrame and returns a reduced DataFrame.
+    """
+    Performs a greedy weighted set cover algorithm on a DataFrame and returns a reduced DataFrame
+    that includes selected pathways based on the smallest False Discovery Rate (fdr) and covering all unique genes.
 
-  Args:
-      df (pd.DataFrame): DataFrame with columns 'inputGenes', 'category', and 'fdr' (p-value).
-                         'description' column is optional.
-      topN (int, optional): The desired number of pathways to return. Defaults to None (all pathways).
-      category (str, optional): Filter pathways by a specific category value.
-      description (str, optional): Filter pathways by a specific description value (partial match).
+    Args:
+        df (pd.DataFrame): DataFrame with columns 'inputGenes', 'category', 'fdr'.
+                           Optional 'description' column.
+        topN (int, optional): Maximum number of pathways to return. Defaults to None, indicating all pathways are considered.
+        category (str, optional): Filter pathways by a specific category.
+        description (str, optional): Filter pathways by matching a substring in the description.
 
-  Returns:
-      pd.DataFrame: Reduced DataFrame containing only the selected pathways.
-  """
+    Returns:
+        pd.DataFrame: Reduced DataFrame containing only the selected pathways.
+    """
 
-  # Function to process a single pathway for weighted set cover
-  def process_set(genes, fdr):
-    cost = -math.log10(fdr)  # Cost function based on negative log p-value
-    return cost
+    # Filter DataFrame based on category and description criteria
+    if category:
+        df = df[df['category'] == category]
+    if description:
+        df = df[df['description'].str.contains(description, na=False)]
 
-  # Prepare data for weighted set cover
-  all_genes = set(df["inputGenes"].sum())  # Set of all unique genes
-  costs = -np.log10(df["fdr"])  # Calculate costs based on negative log p-value
+    # Sort DataFrame by 'fdr' in ascending order to prioritize significant pathways first
+    df.sort_values('fdr', ascending=True, inplace=True)
 
-  # Filter DataFrame if category or description is specified
-  if category:
-    df = df[df["category"] == category]
-  if description:
-    df = df[df["description"].str.contains(description)]
+    # Initialize sets for the greedy algorithm
+    all_genes = set.union(*df['inputGenes'].apply(set))
+    selected_indices = []
+    covered_genes = set()
 
-  # Initialize variables for greedy algorithm
-  selected_genes = set()
-  cur_res = []  # List to store selected pathway indices
-  remain = len(all_genes)  # Number of uncovered genes
+    # Iterate through the pathways in sorted order
+    for idx, row in df.iterrows():
+        pathway_genes = set(row['inputGenes'])
 
-  # Iterate through each row (pathway) in the DataFrame
-  for idx, row in df.iterrows():
-    genes = set(row["inputGenes"])
-    fdr = row["fdr"]
+        # Calculate the number of new genes this pathway would cover
+        new_genes = pathway_genes - covered_genes
+        if new_genes:
+            # Update the covered genes set
+            covered_genes.update(new_genes)
+            selected_indices.append(idx)
 
-    # Check if all genes are covered or limit reached
-    if remain == 0 or (topN is not None and len(cur_res) >= topN):
-      break
+            # Check if all genes are covered or if we have selected enough pathways
+            if len(covered_genes) == len(all_genes) or (topN is not None and len(selected_indices) >= topN):
+                break
 
-    marginal_gain = process_set(genes, fdr)
-
-    # Update only if marginal gain is positive
-    if marginal_gain > 0:
-      selected_genes.update(genes)
-      remain -= len(genes)
-      cur_res.append(idx)  # Store row index (not original index)
-
-  # Return the reduced DataFrame based on row indices
-  return df.loc[cur_res]
+    # Return the DataFrame containing only the selected pathways
+    return df.loc[selected_indices]
 
 def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True, background='transparent', weightedSetCover=False):
     if not isinstance(categories, str):
@@ -408,7 +401,7 @@ def plotWordclouds(funcAnnots, categories='default', plot_dir='.', show=True, ba
             df = df[df['category'].isin(categories)]
 
         if weightedSetCover:
-            df = weighted_set_cover(df)
+            df = weighted_set_cover(df.copy())
 
         # Create a word cloud
         if background == 'transparent':
@@ -627,7 +620,7 @@ def plotWordCloudsPPI(PPIGraph, categories='default', full_network = False, show
         df = df[df['category'].isin(categories)]
 
         if weightedSetCover:
-            df = weighted_set_cover(df)
+            df = weighted_set_cover(df.copy())
 
         # Create a word cloud
         if background == 'transparent':
