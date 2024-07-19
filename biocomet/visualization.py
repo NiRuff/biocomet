@@ -1,28 +1,19 @@
 import warnings
-warnings.filterwarnings("ignore", category=UserWarning, module='nxviz')
+#warnings.filterwarnings("ignore", category=UserWarning, module='nxviz')
 # Suppress specific UserWarning about no data for colormapping
 warnings.filterwarnings('ignore', message="No data for colormapping provided via 'c'. Parameters 'cmap' will be ignored")
 
+#import nxviz as nv
+#from nxviz import annotate
+
 import matplotlib as mpl
 import matplotlib.image as mpimg
-import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap, Normalize
-
+from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.colors as mcolors
-from matplotlib.lines import Line2D
-import matplotlib.patches as mpatches
-mpl.rcParams['font.family'] = "monospace"  # change default font family
-
-import networkx as nx
-import nxviz as nv
-from nxviz import annotate
 from wordcloud import WordCloud
-import pathlib
-from collections import Counter
-import numpy as np
 import seaborn as sns
 import pandas as pd
-from IPython.display import Image, display, HTML
+from IPython.display import Image, display
 import requests
 import io
 import re
@@ -32,10 +23,240 @@ from io import BytesIO
 import json
 import os
 import math
+import matplotlib.patches as mpatches
+import matplotlib.lines as mlines
+from matplotlib.path import Path
+import matplotlib.patches as patches
+import pathlib
+from collections import Counter
+import numpy as np
+from matplotlib.lines import Line2D
+import matplotlib.pyplot as plt
+import networkx as nx
+mpl.rcParams['font.family'] = "monospace"  # change default font family
 
-def plot_nv(G, sigPartition, min_comm_size=3, plot_dir='.', legend=True, kind='ArcPlots', show=True, background='transparent'):
 
-    pathlib.Path(plot_dir + "/" + kind + "/").mkdir(parents=True, exist_ok=True)
+# def plot_nv(G, sigPartition, min_comm_size=3, plot_dir='.', legend=True, kind='ArcPlots', show=True, background='transparent'):
+#
+#     pathlib.Path(plot_dir + "/" + kind + "/").mkdir(parents=True, exist_ok=True)
+#
+#     community_sizes = Counter(sigPartition.values())
+#
+#     # Identify small communities
+#     small_communities = [comm for comm, size in community_sizes.items() if size < min_comm_size]
+#
+#     # Remove genes belonging to small communities from sigPartition
+#     sigPartition = {gene: comm for gene, comm in sigPartition.items() if comm not in small_communities and comm != -1}
+#
+#     # Identify nodes to remove: those in small communities or in the -1 community
+#     nodes_to_remove = [node for node, comm in G.nodes(data='community') if comm in small_communities or comm == -1]
+#     G_trunc = G.copy()
+#     G_trunc.remove_nodes_from(nodes_to_remove)
+#
+#     if len(set(sigPartition.values())) > 12:
+#         # Sort communities by size and keep only the 12 largest
+#         largest_communities = sorted(community_sizes, key=community_sizes.get, reverse=True)[:12]
+#         removed_communities = set(sigPartition.values()) - set(largest_communities)
+#
+#         # Truncate G to include only nodes from the 12 largest communities
+#         nodes_to_remove = [node for node, comm in sigPartition.items() if comm not in largest_communities]
+#         G_trunc.remove_nodes_from(nodes_to_remove)
+#
+#         print(f"G has been truncated to include only the 12 largest communities. Communities removed: {removed_communities}")
+#
+#
+#     fig = plt.figure()
+#     ax = fig.add_subplot(111)
+#
+#     # Step 1: Check if any edge has a weight > 1
+#     weight_greater_than_one = any(edge_data.get('weight', 0) > 1 for _, _, edge_data in G_trunc.edges(data=True))
+#
+#     # Step 2: If no edge has weight > 1, multiply all weights by 1000
+#     if not weight_greater_than_one:
+#         for u, v, edge_data in G_trunc.edges(data=True):
+#             edge_data['weight'] = edge_data.get('weight', 0) * 1000
+#             # Update the edge with the new weight
+#             G_trunc[u][v]['weight'] = edge_data['weight']
+#
+#     if kind == 'ArcPlots':
+#         g = nv.arc(G_trunc, node_color_by="community", group_by="community", edge_color_by="weight", edge_alpha_by="weight")
+#         nv.annotate.arc_group(G_trunc, group_by="community")
+#
+#     elif kind == 'CircosPlots':
+#         g = nv.circos(G_trunc, node_color_by="community", group_by="community", edge_color_by="weight",
+#                       edge_alpha_by="weight")
+#         nv.annotate.circos_group(G_trunc, group_by="community")
+#
+#     g.get_figure().set_size_inches(10, 10)
+#
+#     plt.tight_layout()
+#     plt.autoscale()
+#
+#     if legend:
+#         # Get edge weights
+#         weights = np.array([float(w) for w in nx.get_edge_attributes(G_trunc, 'weight').values()])
+#         # in case something with the weights went wrong and they are 0-1 scaled
+#         if all([num < 1 for num in weights]):
+#             weights = [w * 1000 for w in weights]
+#
+#         # Get min and max values
+#         min_wt = np.min(weights)
+#         max_wt = np.max(weights)
+#
+#         # Create four evenly spaced values in this range
+#         # Make sure they are integers and divisible by 50
+#         legend_values = np.linspace(min_wt, max_wt, 4)
+#         legend_values = (np.round(legend_values / 50) * 50).astype(np.int64)
+#
+#         cmap = plt.cm.viridis
+#         custom_lines = [Line2D([0], [0], color=cmap(i / 3.), lw=6) for i in range(4)]
+#         ax.legend(custom_lines, legend_values, title="Score")
+#
+#     file_name = plot_dir + "/" + kind + "/PartitionedNetwork.png"
+#     print("Saving network plots to %s" % file_name)
+#     change_background_color(plt.gcf(), plt.gca(), background)
+#
+#     plt.savefig(file_name, dpi=300, bbox_inches='tight')
+#     if show:
+#         plt.show()
+#     plt.close()
+
+
+def create_circos_plot(G, partition):
+    sorted_nodes = sorted(G.nodes(), key=lambda n: partition[n])
+    node_angles = {node: i * 2 * np.pi / len(G) for i, node in enumerate(sorted_nodes)}
+
+    unique_communities = sorted(set(partition.values()))
+    color_map = plt.colormaps['tab20']
+    community_colors = {comm: color_map(i / len(unique_communities)) for i, comm in enumerate(unique_communities)}
+
+    fig, ax = plt.subplots(figsize=(20, 20))
+    ax.set_aspect('equal')
+
+    # Node placement and labeling
+    node_radius = 1.0
+    node_label_radius = 1.05
+    for node in sorted_nodes:
+        angle = node_angles[node]
+        x, y = node_radius * np.cos(angle), node_radius * np.sin(angle)
+        color = community_colors[partition[node]]
+        ax.scatter(x, y, c=[color], s=100, zorder=2)
+
+        label_angle = angle
+        if not 0.5 * np.pi <= angle < 1.5 * np.pi:
+            ha, va = 'left', 'center'
+            label_angle = angle
+        else:
+            ha, va = 'right', 'center'
+            label_angle = angle + np.pi
+
+        label_x = node_label_radius * np.cos(angle)
+        label_y = node_label_radius * np.sin(angle)
+
+        ax.text(label_x, label_y, node, rotation=np.degrees(label_angle),
+                ha=ha, va=va, rotation_mode='anchor', fontsize=10)
+
+    # Edge drawing
+    max_weight = max(d['weight'] for _, _, d in G.edges(data=True))
+    for u, v, data in G.edges(data=True):
+        start_angle = node_angles[u]
+        end_angle = node_angles[v]
+        start = node_radius * np.array([np.cos(start_angle), np.sin(start_angle)])
+        end = node_radius * np.array([np.cos(end_angle), np.sin(end_angle)])
+
+        angle_diff = min((end_angle - start_angle) % (2 * np.pi), (start_angle - end_angle) % (2 * np.pi))
+
+        max_curve_angle = np.pi / 2
+        curvature_factor = max(0, 1 - angle_diff / max_curve_angle)
+        curvature_factor = curvature_factor ** 2.5
+
+        mid_angle = (start_angle + end_angle) / 2
+        if mid_angle > np.pi:
+            mid_angle -= 2 * np.pi
+
+        base_mid_radius = node_radius * 0.5
+        max_mid_radius = node_radius * .95
+        mid_radius = base_mid_radius + (max_mid_radius - base_mid_radius) * (1 - curvature_factor)
+
+        if partition[u] == partition[v]:
+            mid_radius *= max(0.7, 1 - angle_diff / np.pi)
+
+        control = mid_radius * np.array([np.cos(mid_angle), np.sin(mid_angle)])
+
+        verts = [
+            (start[0], start[1]),
+            (control[0], control[1]),
+            (end[0], end[1]),
+        ]
+        codes = [
+            Path.MOVETO,
+            Path.CURVE3,
+            Path.CURVE3,
+        ]
+
+        path = Path(verts, codes)
+
+        line_width = 0.5 + (data['weight'] / max_weight) * 4
+        color_u = community_colors[partition[u]]
+        color_v = community_colors[partition[v]]
+        edge_color = np.mean([color_u, color_v], axis=0)
+
+        patch = patches.PathPatch(path, facecolor='none', edgecolor=edge_color,
+                                  lw=line_width, alpha=0.3, zorder=1)
+        ax.add_patch(patch)
+
+    # Community arcs and labels
+    community_radius = 1.3
+    community_label_radius = 1.4
+    for comm in unique_communities:
+        comm_nodes = [n for n in sorted_nodes if partition[n] == comm]
+        if comm_nodes:
+            start_angle = node_angles[comm_nodes[0]]
+            end_angle = node_angles[comm_nodes[-1]]
+            if end_angle < start_angle:
+                end_angle += 2 * np.pi
+            mid_angle = (start_angle + end_angle) / 2
+
+            arc = mpatches.Arc((0, 0), 2 * community_radius, 2 * community_radius,
+                               theta1=np.degrees(start_angle),
+                               theta2=np.degrees(end_angle),
+                               color=community_colors[comm], linewidth=2)
+            ax.add_patch(arc)
+
+            label_angle = mid_angle
+            if not 0.5 * np.pi <= mid_angle < 1.5 * np.pi:
+                ha, va = 'left', 'center'
+                label_angle = mid_angle
+            else:
+                ha, va = 'right', 'center'
+                label_angle = mid_angle + np.pi
+
+            label_x = community_label_radius * np.cos(mid_angle)
+            label_y = community_label_radius * np.sin(mid_angle)
+
+            ax.text(label_x, label_y, f'Comm {comm}', rotation=np.degrees(label_angle),
+                    ha=ha, va=va, rotation_mode='anchor', fontsize=12, fontweight='bold')
+
+    # Add legend for edge weights
+    weight_legend = []
+    for weight in [max_weight * .25, max_weight * 0.5, max_weight * 0.75, max_weight]:
+        line_width = 0.5 + (weight / max_weight) * 4
+        weight_legend.append(mlines.Line2D([], [], color='gray', linewidth=line_width,
+                                           label=f'{weight:.2f}'))
+
+    ax.legend(handles=weight_legend, title='Score', loc='center left', bbox_to_anchor=(1, 0.5))
+
+    ax.set_xlim(-1.5, 1.5)
+    ax.set_ylim(-1.5, 1.5)
+    ax.axis('off')
+
+    plt.tight_layout()
+
+    return fig, ax
+
+
+def plot_circos(G, sigPartition, min_comm_size=3, plot_dir='.', legend=True, show=True, background='transparent'):
+    pathlib.Path(plot_dir + "/CircosPlots/").mkdir(parents=True, exist_ok=True)
 
     community_sizes = Counter(sigPartition.values())
 
@@ -50,21 +271,6 @@ def plot_nv(G, sigPartition, min_comm_size=3, plot_dir='.', legend=True, kind='A
     G_trunc = G.copy()
     G_trunc.remove_nodes_from(nodes_to_remove)
 
-    if len(set(sigPartition.values())) > 12:
-        # Sort communities by size and keep only the 12 largest
-        largest_communities = sorted(community_sizes, key=community_sizes.get, reverse=True)[:12]
-        removed_communities = set(sigPartition.values()) - set(largest_communities)
-
-        # Truncate G to include only nodes from the 12 largest communities
-        nodes_to_remove = [node for node, comm in sigPartition.items() if comm not in largest_communities]
-        G_trunc.remove_nodes_from(nodes_to_remove)
-
-        print(f"G has been truncated to include only the 12 largest communities. Communities removed: {removed_communities}")
-
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-
     # Step 1: Check if any edge has a weight > 1
     weight_greater_than_one = any(edge_data.get('weight', 0) > 1 for _, _, edge_data in G_trunc.edges(data=True))
 
@@ -75,48 +281,42 @@ def plot_nv(G, sigPartition, min_comm_size=3, plot_dir='.', legend=True, kind='A
             # Update the edge with the new weight
             G_trunc[u][v]['weight'] = edge_data['weight']
 
-    if kind == 'ArcPlots':
-        g = nv.arc(G_trunc, node_color_by="community", group_by="community", edge_color_by="weight", edge_alpha_by="weight")
-        nv.annotate.arc_group(G_trunc, group_by="community")
+    # Create the circos plot
+    fig, ax = create_circos_plot(G_trunc, sigPartition)
 
-    elif kind == 'CircosPlots':
-        g = nv.circos(G_trunc, node_color_by="community", group_by="community", edge_color_by="weight",
-                      edge_alpha_by="weight")
-        nv.annotate.circos_group(G_trunc, group_by="community")
+    # Save the plot
+    file_name = plot_dir + "/CircosPlots/PartitionedNetwork.png"
+    change_background_color(fig, ax, background)
+    fig.savefig(file_name, dpi=300, bbox_inches='tight')
+    print(f"Circos plot saved as {file_name}")
 
-    g.get_figure().set_size_inches(10, 10)
-
-    plt.tight_layout()
-    plt.autoscale()
-
+    # Add legend if requested
     if legend:
-        # Get edge weights
+        legend_fig, legend_ax = plt.subplots(figsize=(6, 4))
         weights = np.array([float(w) for w in nx.get_edge_attributes(G_trunc, 'weight').values()])
+
         # in case something with the weights went wrong and they are 0-1 scaled
         if all([num < 1 for num in weights]):
             weights = [w * 1000 for w in weights]
 
-        # Get min and max values
         min_wt = np.min(weights)
         max_wt = np.max(weights)
 
-        # Create four evenly spaced values in this range
-        # Make sure they are integers and divisible by 50
         legend_values = np.linspace(min_wt, max_wt, 4)
         legend_values = (np.round(legend_values / 50) * 50).astype(np.int64)
 
         cmap = plt.cm.viridis
         custom_lines = [Line2D([0], [0], color=cmap(i / 3.), lw=6) for i in range(4)]
-        ax.legend(custom_lines, legend_values, title="Score")
+        legend_ax.legend(custom_lines, legend_values, title="Score")
 
-    file_name = plot_dir + "/" + kind + "/PartitionedNetwork.png"
-    print("Saving network plots to %s" % file_name)
-    change_background_color(plt.gcf(), plt.gca(), background)
+        change_background_color(legend_fig, legend_ax, background)
+        legend_fig.savefig(plot_dir + "/CircosPlots/Legend.png", dpi=300, bbox_inches='tight')
+        plt.close(legend_fig)
 
-    plt.savefig(file_name, dpi=300, bbox_inches='tight')
     if show:
         plt.show()
-    plt.close()
+    else:
+        plt.close(fig)
 
 
 
@@ -1202,7 +1402,7 @@ def visualize_wikipathway(pathway_id, gene_reg_dict, plot_dir=".", community=Non
     draw_on_pathway(pathway_path, gene_reg_dict)
 
     def display_image_html(image_path):
-        from IPython.display import Image, display, HTML
+        from IPython.display import display, HTML
 
         image_html = f'<img src="{image_path}" alt="Image">'
         display(HTML(image_html))

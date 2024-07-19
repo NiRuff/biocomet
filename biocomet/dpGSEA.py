@@ -39,6 +39,7 @@ dpGSEA enriches on a proto-matrix based on a user-defined cutoff (these matrices
 # same goes for TCS
 # check Fig 2 here:https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-020-03929-0#Sec3
 
+# also validate mayaan, chembl and dpGSEA sets by appyling to table 1 data to see if the suspected drugs pop up
 
 def reduceInput(drug_df, gene_list, organism, source, min_genes=1):
     dict_path = os.path.join(os.path.dirname(__file__), 'data', 'drug_gene_mapping_corrected.json.gz')

@@ -6,11 +6,15 @@ import igraph as ig
 from .utils import download_and_load_dataframe
 from .community_detection import apply_leiden, apply_louvain
 from .functional_annotation import checkFuncSignificance, checkFuncSignificanceFullNetwork
-from .visualization import plot_nv, plotPPI, plotWordclouds, plotWordCloudsPPI, visualize_KEGG, plotRegNetworks, visualize_Reactome, visualize_wikipathway
+from .visualization import plot_circos, plotPPI, plotWordclouds, plotWordCloudsPPI, visualize_KEGG, plotRegNetworks, visualize_Reactome, visualize_wikipathway
 from .centrality import calcCentrality
 import os
 import urllib.request
 from tqdm import tqdm
+
+
+# to-do:
+# get rid of all nxviz imports and instead use https://github.com/ponnhide/pyCircos
 
 
 class PPIGraph:
@@ -409,17 +413,17 @@ class PPIGraph:
     def set_plot_dir(self, plot_dir):
         self.plot_dir = plot_dir
 
-    def plot_arc(self, show=True, background='transparent', legend=True):
-
-        if self.partition == None:
-            print('Community detection necessary first. Starting community detection now with default parameters.')
-            self.community_detection()
-
-        if self.func_annotation == None:
-            print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
-            self.get_functional_annotation()
-
-        plot_nv(self.network, self.partition, self.min_comm_size, self.plot_dir, legend=legend, kind='ArcPlots', show=show, background=background)
+    # def plot_arc(self, show=True, background='transparent', legend=True):
+    #
+    #     if self.partition == None:
+    #         print('Community detection necessary first. Starting community detection now with default parameters.')
+    #         self.community_detection()
+    #
+    #     if self.func_annotation == None:
+    #         print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
+    #         self.get_functional_annotation()
+    #
+    #     plot_nv(self.network, self.partition, self.min_comm_size, self.plot_dir, legend=legend, kind='ArcPlots', show=show, background=background)
 
     def plot_circos(self, show=True, background='transparent', legend=True):
 
@@ -431,7 +435,7 @@ class PPIGraph:
             print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
             self.get_functional_annotation()
 
-        plot_nv(self.network, self.partition, self.min_comm_size, self.plot_dir, legend=legend, kind='CircosPlots', show=show, background=background)
+        plot_circos(self.network, self.partition, self.min_comm_size, self.plot_dir, legend=legend, show=show, background=background)
 
     def plot_PPI(self, full_network=False, show=True, background='transparent'):
         if full_network:
