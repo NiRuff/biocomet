@@ -394,21 +394,39 @@ class PPIGraph:
                                  " consider setting full_network=False to check the individual communities for their "
                                  " functional enrichment.")
 
-            if (categories.lower() in ['default', 'pathways', 'all', 'no_pmid', 'no_go']) or (type(categories) == list):
+            # Check if categories is a string and handle accordingly
+            if isinstance(categories, str):
+                categories_lower = categories.lower()  # Convert to lower case only if it's a string
+                if categories_lower in ['default', 'pathways', 'all', 'no_pmid', 'no_go']:
+                    self.func_annotation_full_network = checkFuncSignificanceFullNetwork(self, categories=categories)
+                else:
+                    raise ValueError("Invalid category name")
+            # Check if categories is a list
+            elif isinstance(categories, list):
                 self.func_annotation_full_network = checkFuncSignificanceFullNetwork(self, categories=categories)
             else:
-                raise AttributeError("categories argument not set properly. Specify list of databases or "
-                                     "one of the following strings 'all'/'default'/'pathways'")
+                raise TypeError("Categories must be either a string or a list")
         else:
             if self.partition is None:
                 print('Community detection necessary first. Starting community detection now with default parameters.')
                 self.community_detection()
-            if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
+            # Check if categories is a string and handle accordingly
+            if isinstance(categories, str):
+                categories_lower = categories.lower()  # Convert to lower case only if it's a string
+                if categories_lower in ['default', 'pathways', 'all', 'no_pmid', 'no_go']:
+                    self.func_annotation = checkFuncSignificance(self, sig_only=True,
+                                                                 categories=categories,
+                                                                 min_comm_size=self.min_comm_size)
+                else:
+                    raise ValueError("Invalid category name")
+            # Check if categories is a list
+            elif isinstance(categories, list):
                 self.func_annotation = checkFuncSignificance(self, sig_only=True,
-                                                             categories=categories, min_comm_size=self.min_comm_size)
+                                                             categories=categories,
+                                                             min_comm_size=self.min_comm_size)
             else:
-                raise AttributeError("categories argument not set properly. Specify list of databases or "
-                                     "one of the following strings 'all'/'default'/'pathways'")
+                raise TypeError("Categories must be either a string or a list")
+
 
     def set_plot_dir(self, plot_dir):
         self.plot_dir = plot_dir
@@ -452,13 +470,24 @@ class PPIGraph:
                 print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
                 self.get_functional_annotation(full_network=True, categories=categories)
 
-            if (categories.lower() in ['default', 'pathways', 'all', 'no_pmid', 'no_go']) or (type(categories) == list):
-                plotWordclouds(self.func_annotation_full_network,
-                               categories=categories,
-                               plot_dir=self.plot_dir, show=show, background=background, weightedSetCover=weightedSetCover)
-            else:
-                raise AttributeError("categories argument not set properly. Specify list of databases or "
-                                     "one of the following strings 'all'/'default'/'pathways'")
+                # Check if categories is a string and handle accordingly
+                if isinstance(categories, str):
+                    categories_lower = categories.lower()  # Convert to lower case only if it's a string
+                    if categories_lower in ['default', 'pathways', 'all', 'no_pmid', 'no_go']:
+                        plotWordclouds(self.func_annotation_full_network,
+                                       categories=categories,
+                                       plot_dir=self.plot_dir, show=show, background=background,
+                                       weightedSetCover=weightedSetCover)
+                    else:
+                        raise ValueError("Invalid category name")
+                # Check if categories is a list
+                elif isinstance(categories, list):
+                    plotWordclouds(self.func_annotation_full_network,
+                                   categories=categories,
+                                   plot_dir=self.plot_dir, show=show, background=background,
+                                   weightedSetCover=weightedSetCover)
+                else:
+                    raise TypeError("Categories must be either a string or a list")
 
         else:        # not full network
             if self.partition == None:
@@ -469,13 +498,24 @@ class PPIGraph:
                 print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
                 self.get_functional_annotation(categories=categories)
 
-            if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
-                plotWordclouds(self.func_annotation,
-                               categories=categories,
-                               plot_dir=self.plot_dir, show=show, background=background, weightedSetCover=weightedSetCover)
-            else:
-                raise AttributeError("categories argument not set properly. Specify list of databases or "
-                                     "one of the following strings 'all'/'default'/'pathways'")
+                # Check if categories is a string and handle accordingly
+                if isinstance(categories, str):
+                    categories_lower = categories.lower()  # Convert to lower case only if it's a string
+                    if categories_lower in ['default', 'pathways', 'all', 'no_pmid', 'no_go']:
+                        plotWordclouds(self.func_annotation,
+                                       categories=categories,
+                                       plot_dir=self.plot_dir, show=show, background=background,
+                                       weightedSetCover=weightedSetCover)
+                    else:
+                        raise ValueError("Invalid category name")
+                # Check if categories is a list
+                elif isinstance(categories, list):
+                    plotWordclouds(self.func_annotation,
+                                   categories=categories,
+                                   plot_dir=self.plot_dir, show=show, background=background,
+                                   weightedSetCover=weightedSetCover)
+                else:
+                    raise TypeError("Categories must be either a string or a list")
 
     def plot_Wordclouds_PPI(self, full_network=False, categories='default', show=True, background='transparent', weightedSetCover=False):
 
@@ -484,11 +524,18 @@ class PPIGraph:
                 print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
                 self.get_functional_annotation(full_network=True, categories=categories)
 
-            if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
-                plotWordCloudsPPI(self, full_network=full_network, categories=categories, show=show, background=background,weightedSetCover=weightedSetCover)
-            else:
-                raise AttributeError("categories argument not set properly. Specify list of databases or "
-                                     "one of the following strings 'all'/'default'/'pathways'")
+                # Check if categories is a string and handle accordingly
+                if isinstance(categories, str):
+                    categories_lower = categories.lower()  # Convert to lower case only if it's a string
+                    if categories_lower in ['default', 'pathways', 'all', 'no_pmid', 'no_go']:
+                        plotWordCloudsPPI(self, full_network=full_network, categories=categories, show=show, background=background,weightedSetCover=weightedSetCover)
+                    else:
+                        raise ValueError("Invalid category name")
+                # Check if categories is a list
+                elif isinstance(categories, list):
+                    plotWordCloudsPPI(self, full_network=full_network, categories=categories, show=show, background=background,weightedSetCover=weightedSetCover)
+                else:
+                    raise TypeError("Categories must be either a string or a list")
 
         else:
             if self.partition == None:
@@ -499,11 +546,19 @@ class PPIGraph:
                 print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
                 self.get_functional_annotation()
 
-            if (categories.lower() in ['default','pathways','all', 'no_pmid', 'no_go']) or (type(categories) == list):
-                plotWordCloudsPPI(self, categories=categories, show=show, background=background,weightedSetCover=weightedSetCover)
-            else:
-                raise AttributeError("categories argument not set properly. Specify list of databases or "
-                                     "one of the following strings 'all'/'default'/'pathways'")
+                # Check if categories is a string and handle accordingly
+                if isinstance(categories, str):
+                    categories_lower = categories.lower()  # Convert to lower case only if it's a string
+                    if categories_lower in ['default', 'pathways', 'all', 'no_pmid', 'no_go']:
+                        plotWordCloudsPPI(self, categories=categories, show=show, background=background,weightedSetCover=weightedSetCover)
+                    else:
+                        raise ValueError("Invalid category name")
+                # Check if categories is a list
+                elif isinstance(categories, list):
+                    plotWordCloudsPPI(self, categories=categories, show=show, background=background,weightedSetCover=weightedSetCover)
+                else:
+                    raise TypeError("Categories must be either a string or a list")
+
 
     def plot_Reactome(self, pathway='all', community='all', show=True, background='transparent'):
         if self.partition == None:

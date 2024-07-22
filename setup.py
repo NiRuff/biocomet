@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='biocomet',
-    version='0.1.7',
+    version='0.1.8',
     author='Nicolas Ruffini',
     author_email='nicolas.ruffini@lir-mainz.de',
     description='A brief description of the biocomet package',
@@ -26,7 +26,6 @@ setup(
         'ipython>=7.22.0',
         'python-igraph>=0.10.9',
         'leidenalg>=0.10.2',
-        'nxviz>=0.7.4',
         'tqdm>=4.66.2',
         'wordcloud>=1.9.3',
         'networkx>=3.2.1',
