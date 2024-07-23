@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='biocomet',
-    version='0.1.8',
+    version='0.1.9',
     author='Nicolas Ruffini',
     author_email='nicolas.ruffini@lir-mainz.de',
     description='A brief description of the biocomet package',
@@ -30,5 +30,6 @@ setup(
         'wordcloud>=1.9.3',
         'networkx>=3.2.1',
         'python-louvain>=0.16',
+        'stringdb>=0.1.5',
     ]
 )

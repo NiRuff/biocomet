@@ -342,11 +342,22 @@ def weighted_set_cover(df, topN=None, category=None, description=None):
     if description:
         df = df[df['description'].str.contains(description, na=False)]
 
+
     # Sort DataFrame by 'fdr' in ascending order to prioritize significant pathways first
     df.sort_values('fdr', ascending=True, inplace=True)
 
-    # Initialize sets for the greedy algorithm
-    all_genes = set.union(*df['inputGenes'].apply(set))
+    # Handle cases where there may be no genes to work with
+    if df.empty or 'inputGenes' not in df.columns or df['inputGenes'].isnull().all():
+        warnings.warn("No significant pathways found; the DataFrame is empty or improperly formatted.")
+        return df.iloc[[]]  # Return an empty DataFrame with the same structure
+
+    try:
+        # Initialize sets for the greedy algorithm
+        all_genes = set.union(*df['inputGenes'].dropna().apply(set))
+    except TypeError as e:
+        warnings.warn(f"Failed to initialize gene sets: {str(e)}")
+        return df.iloc[[]]
+
     selected_indices = []
     covered_genes = set()
 

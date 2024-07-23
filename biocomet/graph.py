@@ -382,9 +382,7 @@ class PPIGraph:
         elif algorithm == 'louvain':
             self.partition = apply_louvain(self.network, iterations=iterations, seed=seed)
 
-    def get_functional_annotation(self, full_network=False, categories = 'default'):
-
-
+    def get_functional_annotation(self, full_network=False, categories = 'default', gene_background=None):
 
         if full_network:
             if len(self.gene_list) > 1000:
@@ -398,12 +396,12 @@ class PPIGraph:
             if isinstance(categories, str):
                 categories_lower = categories.lower()  # Convert to lower case only if it's a string
                 if categories_lower in ['default', 'pathways', 'all', 'no_pmid', 'no_go']:
-                    self.func_annotation_full_network = checkFuncSignificanceFullNetwork(self, categories=categories)
+                    self.func_annotation_full_network = checkFuncSignificanceFullNetwork(self, categories=categories, gene_background=gene_background)
                 else:
                     raise ValueError("Invalid category name")
             # Check if categories is a list
             elif isinstance(categories, list):
-                self.func_annotation_full_network = checkFuncSignificanceFullNetwork(self, categories=categories)
+                self.func_annotation_full_network = checkFuncSignificanceFullNetwork(self, categories=categories, gene_background=gene_background)
             else:
                 raise TypeError("Categories must be either a string or a list")
         else:
@@ -416,14 +414,16 @@ class PPIGraph:
                 if categories_lower in ['default', 'pathways', 'all', 'no_pmid', 'no_go']:
                     self.func_annotation = checkFuncSignificance(self, sig_only=True,
                                                                  categories=categories,
-                                                                 min_comm_size=self.min_comm_size)
+                                                                 min_comm_size=self.min_comm_size,
+                                                                 gene_background=gene_background)
                 else:
                     raise ValueError("Invalid category name")
             # Check if categories is a list
             elif isinstance(categories, list):
                 self.func_annotation = checkFuncSignificance(self, sig_only=True,
                                                              categories=categories,
-                                                             min_comm_size=self.min_comm_size)
+                                                             min_comm_size=self.min_comm_size,
+                                                             gene_background=gene_background)
             else:
                 raise TypeError("Categories must be either a string or a list")
 
