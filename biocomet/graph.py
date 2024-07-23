@@ -449,9 +449,9 @@ class PPIGraph:
             print('Community detection necessary first. Starting community detection now with default parameters.')
             self.community_detection()
 
-        if self.func_annotation == None:
-            print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
-            self.get_functional_annotation()
+        # if self.func_annotation == None:
+        #     print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
+        #     self.get_functional_annotation()
 
         plot_circos(self.network, self.partition, self.min_comm_size, self.plot_dir, legend=legend, show=show, background=background)
 
@@ -464,11 +464,11 @@ class PPIGraph:
                 self.community_detection()
             plotPPI(self, full_network=False, show=show, background=background)
 
-    def plot_Wordclouds(self, full_network=False, categories='default', show=True, background='transparent', weightedSetCover=False):
+    def plot_Wordclouds(self, full_network=False, categories='default', show=True, background='transparent', weightedSetCover=False, gene_background=None):
         if full_network:
             if self.func_annotation_full_network == None:
                 print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
-                self.get_functional_annotation(full_network=True, categories=categories)
+                self.get_functional_annotation(full_network=True, categories=categories, gene_background=gene_background)
 
                 # Check if categories is a string and handle accordingly
                 if isinstance(categories, str):
@@ -496,7 +496,7 @@ class PPIGraph:
 
             if self.func_annotation == None:
                 print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
-                self.get_functional_annotation(categories=categories)
+                self.get_functional_annotation(categories=categories, gene_background=gene_background)
 
                 # Check if categories is a string and handle accordingly
                 if isinstance(categories, str):
@@ -517,12 +517,12 @@ class PPIGraph:
                 else:
                     raise TypeError("Categories must be either a string or a list")
 
-    def plot_Wordclouds_PPI(self, full_network=False, categories='default', show=True, background='transparent', weightedSetCover=False):
+    def plot_Wordclouds_PPI(self, full_network=False, categories='default', show=True, background='transparent', weightedSetCover=False, gene_background=None):
 
         if full_network:
             if self.func_annotation_full_network == None:
-                print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
-                self.get_functional_annotation(full_network=True, categories=categories)
+                print('Functional annotation necessary first. Starting functional annotation now with default parameters if not specified otherwise.')
+                self.get_functional_annotation(full_network=True, categories=categories, gene_background=gene_background)
 
                 # Check if categories is a string and handle accordingly
                 if isinstance(categories, str):
@@ -544,7 +544,7 @@ class PPIGraph:
 
             if self.func_annotation == None:
                 print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
-                self.get_functional_annotation()
+                self.get_functional_annotation(full_network=False, categories=categories, gene_background=gene_background)
 
                 # Check if categories is a string and handle accordingly
                 if isinstance(categories, str):
@@ -561,11 +561,14 @@ class PPIGraph:
 
 
     def plot_Reactome(self, pathway='all', community='all', show=True, background='transparent'):
+        # todo: add parameters or change logic of using reactome here
+        print('currently default parameters are used when running this directly without doing community detection '
+              'or functional annotation earlier. please keep this in mind')
         if self.partition == None:
             print('Community detection necessary first. Starting community detection now with default parameters.')
             self.community_detection()
         if self.func_annotation == None:
-            print('Functional annotation necessary first. Starting functional annotation now with default parameters.')
+            print('Functional annotation necessary first. Starting functional annotation now with default parameters if not specified otherwise.')
             self.get_functional_annotation()
 
         if self.reg_list is not None:
@@ -625,6 +628,9 @@ class PPIGraph:
                                        plot_dir=self.plot_dir, community=comm, show=show, background=background)
 
     def plot_WikiPathway(self, pathway='all', community='all', show=True):
+        # todo: add parameters or change logic of using WikiPathways here
+        print('currently default parameters are used when running this directly without doing community detection '
+              'or functional annotation earlier. please keep this in mind')
         if self.partition == None:
             print('Community detection necessary first. Starting community detection now with default parameters.')
             self.community_detection()
@@ -685,6 +691,9 @@ class PPIGraph:
                                        plot_dir=self.plot_dir, community=comm, show=show)
 
     def plot_KEGG(self, pathway='all', community='all', show=True, transparency=.5, background='transparent'):
+        # todo: add parameters or change logic of using KEGG here
+        print('currently default parameters are used when running this directly without doing community detection '
+              'or functional annotation earlier. please keep this in mind')
 
         if self.partition == None:
             print('Community detection necessary first. Starting community detection now with default parameters.')

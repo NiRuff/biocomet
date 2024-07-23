@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='biocomet',
-    version='0.1.9',
+    version='0.1.10',
     author='Nicolas Ruffini',
     author_email='nicolas.ruffini@lir-mainz.de',
     description='A brief description of the biocomet package',
